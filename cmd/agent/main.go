@@ -12,7 +12,7 @@ import (
 
 const (
 	PollInterval   = 2 * time.Second
-	ReportInterval = 4 * time.Second
+	ReportInterval = 10 * time.Second
 
 	BaseURL = "http://localhost:8080/"
 )
@@ -89,9 +89,7 @@ func collectMetrics(metrics *RuntimeMetrics, pollCount Counter) {
 	metrics.RandomValue = Gauge(rand.Float64())
 }
 
-func reportMetrics(metrics *RuntimeMetrics) {
-	client := http.Client{}
-
+func reportMetrics(metrics *RuntimeMetrics) error {
 	v := reflect.ValueOf(*metrics)
 
 	for i := 0; i < v.NumField(); i++ {
@@ -102,14 +100,23 @@ func reportMetrics(metrics *RuntimeMetrics) {
 		currentURL := BaseURL + "update/" + metricType + "/" + metricName + "/" + metricValue
 
 		req, err := http.NewRequest(http.MethodPost, currentURL, nil)
-
-		if err == nil {
-			req.Header.Add("Content-Type", "text/plain")
-			client.Do(req)
+		if err != nil {
+			return err
 		}
 
-		req.Body.Close()
+		req.Header.Add("Content-Type", "text/plain")
+
+		resp, err := http.DefaultClient.Do(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
+
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func NewMonitor() {

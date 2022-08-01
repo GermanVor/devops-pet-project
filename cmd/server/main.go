@@ -3,14 +3,17 @@ package main
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
+	storage "github.com/GermanVor/devops-pet-project/storage"
 )
 
-func HelloWorld(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.Method, r.RequestURI)
-}
-
 func main() {
-	http.HandleFunc("/update/", HelloWorld)
+	currentStorage := storage.Init()
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		handlers.UpdateStorageFunc(w, r, currentStorage)
+	})
 
 	fmt.Println("Server Started: http://localhost:8080/")
 	http.ListenAndServe(":8080", nil)

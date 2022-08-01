@@ -11,6 +11,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
+func missedMetricNameHandlerFunc(rw http.ResponseWriter, r *http.Request) {
+	rw.WriteHeader(http.StatusNotFound)
+	rw.Write(nil)
+}
+
 func main() {
 	r := chi.NewRouter()
 	currentStorage := storage.Init()
@@ -53,6 +58,9 @@ func main() {
 			rw.WriteHeader(http.StatusOK)
 			rw.Write(nil)
 		})
+
+		r.Post("/gauge/", missedMetricNameHandlerFunc)
+		r.Post("/counter/", missedMetricNameHandlerFunc)
 
 		r.Post("/*", func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusNotImplemented)

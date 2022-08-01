@@ -53,6 +53,11 @@ func main() {
 			rw.WriteHeader(http.StatusOK)
 			rw.Write(nil)
 		})
+
+		r.Post("/*", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusNotImplemented)
+			rw.Write(nil)
+		})
 	})
 
 	r.Route("/value", func(r chi.Router) {

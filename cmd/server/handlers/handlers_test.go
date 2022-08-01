@@ -40,7 +40,7 @@ func Test_PositiveInputs(t *testing.T) {
 		err = result.Body.Close()
 		require.NoError(t, err)
 
-		storageMetcric := currentStorage.GetGaugeMetric(metricName)
+		storageMetcric, _ := currentStorage.GetGaugeMetric(metricName)
 		assert.Equal(t, metricValue, storageMetcric)
 	})
 
@@ -64,7 +64,7 @@ func Test_PositiveInputs(t *testing.T) {
 		err = result.Body.Close()
 		require.NoError(t, err)
 
-		storageMetcric := currentStorage.GetCounterMetric(metricName)
+		storageMetcric, _ := currentStorage.GetCounterMetric(metricName)
 		assert.Equal(t, metricValue, storageMetcric)
 	})
 
@@ -124,7 +124,7 @@ func Test_PositiveInputs(t *testing.T) {
 		err = result.Body.Close()
 		require.NoError(t, err)
 
-		storageMetcric := currentStorage.GetGaugeMetric(metricName)
+		storageMetcric, _ := currentStorage.GetGaugeMetric(metricName)
 		assert.Equal(t, float64(0), storageMetcric)
 	})
 
@@ -146,7 +146,7 @@ func Test_PositiveInputs(t *testing.T) {
 		err = result.Body.Close()
 		require.NoError(t, err)
 
-		storageMetcric := currentStorage.GetCounterMetric(metricName)
+		storageMetcric, _ := currentStorage.GetCounterMetric(metricName)
 		assert.Equal(t, int64(0), storageMetcric)
 	})
 }

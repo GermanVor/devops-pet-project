@@ -23,24 +23,40 @@ func Init() *Storage {
 }
 
 func (stor *Storage) SetGaugeMetric(metricName string, value float64) {
+
+
 	stor.gaugeMapRWM.Lock()
 	defer stor.gaugeMapRWM.Unlock()
 
 	stor.gaugeMap[metricName] = value
 }
 
-func (stor *Storage) GetGaugeMetric(metricName string) float64 {
+func (stor *Storage) GetGaugeMetric(metricName string) (float64, bool) {
 	stor.gaugeMapRWM.Lock()
 	defer stor.gaugeMapRWM.Unlock()
 
-	return stor.gaugeMap[metricName]
+	value, ok := stor.gaugeMap[metricName]
+	return value, ok
 }
 
-func (stor *Storage) GetCounterMetric(metricName string) int64 {
+func (stor *Storage) ForEachGaugeMetric(handler func(metricName string, value float64)) {
+	for a, b := range stor.gaugeMap {
+		handler(a, b)
+	}
+}
+
+func (stor *Storage) GetCounterMetric(metricName string) (int64, bool) {
 	stor.counterMapRWM.Lock()
 	defer stor.counterMapRWM.Unlock()
 
-	return stor.counterMap[metricName]
+	value, ok := stor.counterMap[metricName]
+	return value, ok
+}
+
+func (stor *Storage) ForEachCounterMetric(handler func(metricName string, value int64)) {
+	for a, b := range stor.counterMap {
+		handler(a, b)
+	}
 }
 
 func (stor *Storage) IncreaseCounterMetric(metricName string, count int64) {

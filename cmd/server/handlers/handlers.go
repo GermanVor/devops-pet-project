@@ -127,6 +127,7 @@ func InitRouter(currentStorage *storage.Storage) *chi.Mux {
 			list += "<li>" + metricName + " - " + fmt.Sprint(value) + "</li>"
 		})
 
+		rw.Header().Add("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(rw, "<div><ul>%s</ul></div>", list)
 	})
 

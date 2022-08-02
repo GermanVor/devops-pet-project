@@ -82,11 +82,10 @@ func TestIndex(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		defer resp.Body.Close()
-
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))

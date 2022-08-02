@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/bmizerany/assert"
+	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,7 +29,9 @@ func float64frombytes(bytes []byte) float64 {
 
 func TestIndex(t *testing.T) {
 	currentStorage := storage.Init()
-	r := handlers.InitRouter(currentStorage)
+	r := chi.NewRouter()
+
+	handlers.InitRouter(r, currentStorage)
 
 	ts := httptest.NewServer(r)
 	defer ts.Close()

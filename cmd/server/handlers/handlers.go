@@ -81,9 +81,7 @@ func missedMetricNameHandlerFunc(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(nil)
 }
 
-func InitRouter(currentStorage *storage.Storage) *chi.Mux {
-	r := chi.NewRouter()
-
+func InitRouter(r *chi.Mux, currentStorage *storage.Storage) *chi.Mux {
 	r.Route("/update", func(r chi.Router) {
 		r.Post("/gauge/{metricName}/{metricValue}", func(wr http.ResponseWriter, r *http.Request) {
 			UpdateGaugeMetric(wr, r, currentStorage)

@@ -8,6 +8,7 @@ import (
 
 	"devops-pet-project/storage"
 
+	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 )
 
@@ -18,10 +19,11 @@ func missedMetricNameHandlerFunc(rw http.ResponseWriter, r *http.Request) {
 
 func main() {
 	currentStorage := storage.Init()
-
-	r := handlers.InitRouter(currentStorage)
+	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
+
+	handlers.InitRouter(r, currentStorage)
 
 	fmt.Println("Server Started: http://localhost:8080/")
 

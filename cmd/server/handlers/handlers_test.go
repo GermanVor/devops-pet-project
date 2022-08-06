@@ -1,31 +1,22 @@
 package handlers_test
 
 import (
-	"devops-pet-project/cmd/agent/metrics"
-	"devops-pet-project/cmd/agent/utils"
-	"devops-pet-project/cmd/server/handlers"
-	"devops-pet-project/storage"
-	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
+	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
+	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
+	"github.com/GermanVor/devops-pet-project/storage"
 	"github.com/bmizerany/assert"
 	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/require"
 )
-
-func float64frombytes(bytes []byte) float64 {
-	bits := binary.LittleEndian.Uint64(bytes)
-	float := math.Float64frombits(bits)
-
-	return float
-}
 
 func TestIndex(t *testing.T) {
 	currentStorage := storage.Init()

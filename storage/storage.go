@@ -23,8 +23,6 @@ func Init() *Storage {
 }
 
 func (stor *Storage) SetGaugeMetric(metricName string, value float64) {
-
-
 	stor.gaugeMapRWM.Lock()
 	defer stor.gaugeMapRWM.Unlock()
 

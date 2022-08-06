@@ -8,9 +8,11 @@ import (
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
 )
 
-func CollectMetrics(m *metrics.RuntimeMetrics, pollCount metrics.Counter) {
+func CollectMetrics() *metrics.RuntimeMetrics {
 	rtm := runtime.MemStats{}
 	runtime.ReadMemStats(&rtm)
+
+	m := metrics.RuntimeMetrics{}
 
 	m.Alloc = metrics.Gauge(rtm.Alloc)
 	m.BuckHashSys = metrics.Gauge(rtm.BuckHashSys)
@@ -40,8 +42,9 @@ func CollectMetrics(m *metrics.RuntimeMetrics, pollCount metrics.Counter) {
 	m.Sys = metrics.Gauge(rtm.Sys)
 	m.TotalAlloc = metrics.Gauge(rtm.TotalAlloc)
 
-	m.PollCount = pollCount
 	m.RandomValue = metrics.Gauge(rand.Float64())
+
+	return &m
 }
 
 func BuildEndpointURL(endpointURL, metricType, metricName, metricValue string) string {

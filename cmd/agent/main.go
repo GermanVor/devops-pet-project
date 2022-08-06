@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	metrics "github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
@@ -23,34 +25,65 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 	reportInterval := time.NewTicker(ReportInterval)
 	defer reportInterval.Stop()
 
-	m := &metrics.RuntimeMetrics{}
-	pollCount := metrics.Counter(0)
+	var mPointer *metrics.RuntimeMetrics
+	mux := sync.Mutex{}
 
-	for {
-		select {
-		case <-pollTicker.C:
-			utils.CollectMetrics(m, pollCount)
-			pollCount++
-		case <-reportInterval.C:
-			metrics.ForEach(m, func(metricType, metricName, metricValue string) {
-				req, err := utils.BuildRequest(endpointURL, metricType, metricName, metricValue)
+	go func() {
+		pollCount := metrics.Counter(0)
 
-				if err == nil {
-					resp, _ := client.Do(req)
-					if resp != nil {
-						resp.Body.Close()
-					}
-				}
-			})
-		case <-ctx.Done():
-			return
+		for {
+			select {
+			case <-pollTicker.C:
+				mux.Lock()
+
+				mPointer = utils.CollectMetrics()
+				mPointer.PollCount = pollCount
+				pollCount++
+
+				mux.Unlock()
+			case <-ctx.Done():
+				return
+			}
 		}
-	}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-reportInterval.C:
+				mux.Lock()
+				metricsCopy := *mPointer
+				mux.Unlock()
+
+				metrics.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
+					req, err := utils.BuildRequest(endpointURL, metricType, metricName, metricValue)
+
+					if err != nil {
+						fmt.Println(err)
+						return
+					}
+
+					go func() {
+						resp, err := client.Do(req)
+						if err != nil {
+							fmt.Println(err)
+							return
+						}
+
+						resp.Body.Close()
+					}()
+				})
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	<-ctx.Done()
 }
 
 func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(100)*ReportInterval)
-	defer cancel()
+	ctx := context.Background()
 
 	Start(ctx, EndpointURL, *http.DefaultClient)
 }

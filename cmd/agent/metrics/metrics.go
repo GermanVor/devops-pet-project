@@ -47,8 +47,12 @@ type RuntimeMetrics struct {
 	RandomValue Gauge
 }
 
-func ForEach(metrics *RuntimeMetrics, metricHandler func(metricType, metricName, metricValue string)) {
-	v := reflect.ValueOf(*metrics)
+func ForEach(metricsP *RuntimeMetrics, metricHandler func(metricType, metricName, metricValue string)) {
+	if (metricsP == nil) {
+		return
+	}
+
+	v := reflect.ValueOf(*metricsP)
 
 	for i := 0; i < v.NumField(); i++ {
 		metricType := strings.ToLower(v.Field(i).Type().Name())

@@ -1,13 +1,12 @@
 package main
 
 import (
-	"devops-pet-project/cmd/server/handlers"
 	"fmt"
 	"log"
 	"net/http"
 
-	"devops-pet-project/storage"
-
+	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
+	"github.com/GermanVor/devops-pet-project/storage"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 )

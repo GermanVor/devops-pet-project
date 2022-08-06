@@ -5,8 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"devops-pet-project/storage"
-
+	"github.com/GermanVor/devops-pet-project/storage"
 	"github.com/go-chi/chi"
 )
 

@@ -1,11 +1,8 @@
-module devops-pet-project
-
-replace github.com/GermanVor/devops-pet-project => ../devops-pet-project
+module github.com/GermanVor/devops-pet-project
 
 go 1.18
 
 require (
-	github.com/GermanVor/devops-pet-project v0.0.0-00010101000000-000000000000
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/go-chi/chi v1.5.4
 	github.com/stretchr/testify v1.8.0

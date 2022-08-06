@@ -38,6 +38,9 @@ func (stor *Storage) GetGaugeMetric(metricName string) (float64, bool) {
 }
 
 func (stor *Storage) ForEachGaugeMetric(handler func(metricName string, value float64)) {
+	stor.gaugeMapRWM.Lock()
+	defer stor.gaugeMapRWM.Unlock()
+
 	for a, b := range stor.gaugeMap {
 		handler(a, b)
 	}
@@ -52,6 +55,9 @@ func (stor *Storage) GetCounterMetric(metricName string) (int64, bool) {
 }
 
 func (stor *Storage) ForEachCounterMetric(handler func(metricName string, value int64)) {
+	stor.counterMapRWM.Lock()
+	defer stor.counterMapRWM.Unlock()
+
 	for a, b := range stor.counterMap {
 		handler(a, b)
 	}

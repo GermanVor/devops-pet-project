@@ -34,12 +34,12 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 		for {
 			select {
 			case <-pollTicker.C:
-				mux.Lock()
-
-				mPointer = utils.CollectMetrics()
-				mPointer.PollCount = pollCount
+				metricsPointer := utils.CollectMetrics()
+				metricsPointer.PollCount = pollCount
 				pollCount++
 
+				mux.Lock()
+				mPointer = metricsPointer
 				mux.Unlock()
 			case <-ctx.Done():
 				return

@@ -17,14 +17,12 @@ func UpdateGaugeMetric(rw http.ResponseWriter, r *http.Request, currentStorage *
 
 	if err != nil {
 		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write(nil)
 		return
 	}
 
 	currentStorage.SetGaugeMetric(metricName, metricValue)
 
 	rw.WriteHeader(http.StatusOK)
-	rw.Write(nil)
 }
 
 func UpdateCounterMetric(rw http.ResponseWriter, r *http.Request, currentStorage *storage.Storage) {
@@ -35,14 +33,13 @@ func UpdateCounterMetric(rw http.ResponseWriter, r *http.Request, currentStorage
 
 	if err != nil {
 		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write(nil)
+
 		return
 	}
 
 	currentStorage.IncreaseCounterMetric(metricName, metricValue)
 
 	rw.WriteHeader(http.StatusOK)
-	rw.Write(nil)
 }
 
 func GetGaugeMetric(rw http.ResponseWriter, r *http.Request, currentStorage *storage.Storage) {
@@ -56,7 +53,6 @@ func GetGaugeMetric(rw http.ResponseWriter, r *http.Request, currentStorage *sto
 		rw.Write([]byte(fmt.Sprint(value)))
 	} else {
 		rw.WriteHeader(http.StatusNotFound)
-		rw.Write(nil)
 	}
 }
 
@@ -71,13 +67,11 @@ func GetCounterMetric(rw http.ResponseWriter, r *http.Request, currentStorage *s
 		rw.Write([]byte(fmt.Sprint(value)))
 	} else {
 		rw.WriteHeader(http.StatusNotFound)
-		rw.Write(nil)
 	}
 }
 
 func missedMetricNameHandlerFunc(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNotFound)
-	rw.Write(nil)
 }
 
 func InitRouter(r *chi.Mux, currentStorage *storage.Storage) *chi.Mux {
@@ -95,7 +89,6 @@ func InitRouter(r *chi.Mux, currentStorage *storage.Storage) *chi.Mux {
 
 		r.Post("/*", func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusNotImplemented)
-			rw.Write(nil)
 		})
 	})
 
@@ -110,7 +103,6 @@ func InitRouter(r *chi.Mux, currentStorage *storage.Storage) *chi.Mux {
 
 		r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusNotFound)
-			rw.Write(nil)
 		})
 	})
 

@@ -9,20 +9,22 @@ import (
 
 	metrics "github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
 	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
+	"github.com/GermanVor/devops-pet-project/common"
+	"github.com/joho/godotenv"
 )
 
-const (
-	PollInterval   = 2 * time.Second
-	ReportInterval = 10 * time.Second
+var Config *common.Config
 
-	EndpointURL = "http://localhost:8080/"
-)
+func init() {
+	godotenv.Load(".env")
+	Config = common.InitConfig()
+}
 
 func Start(ctx context.Context, endpointURL string, client http.Client) {
-	pollTicker := time.NewTicker(PollInterval)
+	pollTicker := time.NewTicker(Config.PollInterval)
 	defer pollTicker.Stop()
 
-	reportInterval := time.NewTicker(ReportInterval)
+	reportInterval := time.NewTicker(Config.ReportInterval)
 	defer reportInterval.Stop()
 
 	var mPointer *metrics.RuntimeMetrics
@@ -56,14 +58,31 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 				mux.Unlock()
 
 				metrics.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
-					req, err := utils.BuildRequest(endpointURL, metricType, metricName, metricValue)
-
-					if err != nil {
-						fmt.Println(err)
-						return
-					}
-
 					go func() {
+						req, err := utils.BuildRequest(endpointURL, metricType, metricName, metricValue)
+						if err != nil {
+							fmt.Println(err)
+							return
+						}
+
+						resp, err := client.Do(req)
+						if err != nil {
+							fmt.Println(err)
+							return
+						}
+
+						resp.Body.Close()
+					}()
+				})
+
+				metrics.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
+					go func() {
+						req, err := utils.BuildRequestV2(endpointURL, metricType, metricName, metricValue)
+						if err != nil {
+							fmt.Println(err)
+							return
+						}
+
 						resp, err := client.Do(req)
 						if err != nil {
 							fmt.Println(err)
@@ -85,5 +104,5 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 func main() {
 	ctx := context.Background()
 
-	Start(ctx, EndpointURL, *http.DefaultClient)
+	Start(ctx, "http://"+Config.Address, *http.DefaultClient)
 }

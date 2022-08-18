@@ -29,13 +29,11 @@ func createTestEnvironment() (*storage.Storage, string, func()) {
 
 	ts := httptest.NewServer(r)
 
-	endpointURL := ts.URL + "/"
-
 	destructor := func() {
 		ts.Close()
 	}
 
-	return currentStorage, endpointURL, destructor
+	return currentStorage, ts.URL, destructor
 }
 
 func TestServerOperations(t *testing.T) {
@@ -65,7 +63,7 @@ func TestServerOperations(t *testing.T) {
 
 		{
 
-			req, err := http.NewRequest(http.MethodGet, endpointURL+"value/gauge/"+gaugeMetricName, nil)
+			req, err := http.NewRequest(http.MethodGet, endpointURL+"/value/gauge/"+gaugeMetricName, nil)
 			require.NoError(t, err)
 
 			resp, err := http.DefaultClient.Do(req)
@@ -111,7 +109,7 @@ func TestServerOperations(t *testing.T) {
 		_, endpointURL, destructor := createTestEnvironment()
 		defer destructor()
 
-		req, err := http.NewRequest(http.MethodPost, endpointURL+"update/gauge/", nil)
+		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/gauge/", nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -130,7 +128,7 @@ func TestServerOperations(t *testing.T) {
 		_, endpointURL, destructor := createTestEnvironment()
 		defer destructor()
 
-		req, err := http.NewRequest(http.MethodPost, endpointURL+"update/counter/", nil)
+		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/counter/", nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -150,7 +148,7 @@ func TestServerOperations(t *testing.T) {
 		defer destructor()
 
 		metricName := "qwerty3"
-		req, err := http.NewRequest(http.MethodPost, endpointURL+"update/gauge/"+metricName+"/qwe", nil)
+		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/gauge/"+metricName+"/qwe", nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -173,7 +171,7 @@ func TestServerOperations(t *testing.T) {
 		defer destructor()
 
 		metricName := "qwerty4"
-		req, err := http.NewRequest(http.MethodPost, endpointURL+"update/counter/"+metricName+"/qwe", nil)
+		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/counter/"+metricName+"/qwe", nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -269,7 +267,7 @@ func TestServerOperationsV2(t *testing.T) {
 		require.NoError(t, err)
 
 		{
-			resp, err := http.DefaultClient.Post(endpointURL+"update/", "application/json", bytes.NewReader(jsonResp))
+			resp, err := http.DefaultClient.Post(endpointURL+"/update/", "application/json", bytes.NewReader(jsonResp))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -282,7 +280,7 @@ func TestServerOperationsV2(t *testing.T) {
 		}
 
 		{
-			resp, err := http.DefaultClient.Post(endpointURL+"value/", "application/json", bytes.NewReader(jsonResp))
+			resp, err := http.DefaultClient.Post(endpointURL+"/value/", "application/json", bytes.NewReader(jsonResp))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -315,7 +313,7 @@ func TestServerOperationsV2(t *testing.T) {
 		require.NoError(t, err)
 
 		{
-			resp, err := http.DefaultClient.Post(endpointURL+"update/", "application/json", bytes.NewReader(jsonResp))
+			resp, err := http.DefaultClient.Post(endpointURL+"/update/", "application/json", bytes.NewReader(jsonResp))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -328,7 +326,7 @@ func TestServerOperationsV2(t *testing.T) {
 		}
 
 		{
-			resp, err := http.DefaultClient.Post(endpointURL+"value/", "application/json", bytes.NewReader(jsonResp))
+			resp, err := http.DefaultClient.Post(endpointURL+"/value/", "application/json", bytes.NewReader(jsonResp))
 			if err != nil {
 				t.Fatal(err)
 			}

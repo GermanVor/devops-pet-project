@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"math/rand"
 	"net/http"
 	"runtime"
@@ -50,7 +51,7 @@ func CollectMetrics() *metrics.RuntimeMetrics {
 }
 
 func BuildEndpointURL(endpointURL, metricType, metricName, metricValue string) string {
-	return endpointURL + "update/" + metricType + "/" + metricName + "/" + metricValue
+	return endpointURL + "/update/" + metricType + "/" + metricName + "/" + metricValue
 }
 
 func BuildRequest(endpointURL, metricType, metricName, metricValue string) (*http.Request, error) {
@@ -90,7 +91,12 @@ func BuildRequestV2(endpointURL, metricType, metricName, metricValue string) (*h
 		metric.Delta = &delta
 	}
 
-	req, err := http.NewRequest(http.MethodPost, endpointURL+"update/", nil)
+	metricBytes, err := metric.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/", bytes.NewBuffer(metricBytes))
 	if err != nil {
 		return nil, err
 	}

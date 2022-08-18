@@ -6,10 +6,19 @@ import (
 	"net/http"
 
 	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
+	"github.com/GermanVor/devops-pet-project/common"
 	"github.com/GermanVor/devops-pet-project/storage"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/joho/godotenv"
 )
+
+var Address string
+
+func init() {
+	godotenv.Load(".env")
+	Address = common.InitConfig().Address
+}
 
 func main() {
 	currentStorage := storage.Init()
@@ -19,7 +28,7 @@ func main() {
 
 	handlers.InitRouter(r, currentStorage)
 
-	fmt.Println("Server Started: http://localhost:8080/")
+	fmt.Println("Server Started: http://" + Address)
 
-	log.Fatal(http.ListenAndServe(":8080", r))
+	log.Fatal(http.ListenAndServe(Address, r))
 }

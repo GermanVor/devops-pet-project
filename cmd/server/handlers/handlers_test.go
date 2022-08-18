@@ -265,7 +265,7 @@ func TestServerOperationsV2(t *testing.T) {
 			Value: &value,
 		}
 
-		jsonResp, err := json.Marshal(metric)
+		jsonResp, err := metric.MarshalJSON()
 		require.NoError(t, err)
 
 		{
@@ -311,7 +311,7 @@ func TestServerOperationsV2(t *testing.T) {
 			Delta: &delta,
 		}
 
-		jsonResp, err := json.Marshal(metric)
+		jsonResp, err := metric.MarshalJSON()
 		require.NoError(t, err)
 
 		{

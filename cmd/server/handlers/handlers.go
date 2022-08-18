@@ -107,11 +107,12 @@ func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage *storage.S
 		return
 	}
 
+	// reuse metric object from http.Request.Body
 	writeMetric := func() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		jsonResp, err := json.Marshal(metric)
+		jsonResp, err := metric.MarshalJSON()
 		if err != nil {
 			log.Fatalf("Error happened in JSON marshal. Err: %s", err)
 		}

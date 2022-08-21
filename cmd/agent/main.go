@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"net/http"
 	"sync"
@@ -10,14 +11,17 @@ import (
 	metrics "github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
 	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
 	"github.com/GermanVor/devops-pet-project/common"
-	"github.com/joho/godotenv"
 )
 
-var Config *common.Config
+var Config = &common.AgentConfig{
+	Address:        "localhost:8080",
+	PollInterval:   2 * time.Second,
+	ReportInterval: 10 * time.Second,
+}
 
 func init() {
-	godotenv.Load(".env")
-	Config = common.InitConfig()
+	common.InitAgentEnvConfig(Config)
+	common.InitAgentFlagConfig(Config)
 }
 
 func Start(ctx context.Context, endpointURL string, client http.Client) {
@@ -102,6 +106,7 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 }
 
 func main() {
+	flag.Parse()
 	ctx := context.Background()
 
 	Start(ctx, "http://"+Config.Address, *http.DefaultClient)

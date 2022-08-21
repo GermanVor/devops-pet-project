@@ -10,6 +10,7 @@ import (
 	"github.com/GermanVor/devops-pet-project/common"
 	"github.com/GermanVor/devops-pet-project/storage"
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 )
 
 func UpdateGaugeMetric(w http.ResponseWriter, r *http.Request, currentStorage *storage.Storage) {
@@ -137,7 +138,18 @@ func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage *storage.S
 	w.WriteHeader(http.StatusNotFound)
 }
 
+var defaultCompressibleContentTypes = []string{
+	"application/javascript",
+	"application/json",
+	"text/css",
+	"text/html",
+	"text/plain",
+	"text/xml",
+}
+
 func InitRouter(r *chi.Mux, currentStorage *storage.Storage) *chi.Mux {
+	r.Use(middleware.Compress(5, defaultCompressibleContentTypes...))
+
 	r.Route("/update", func(r chi.Router) {
 		r.Post("/gauge/{metricName}/{metricValue}", func(wr http.ResponseWriter, r *http.Request) {
 			UpdateGaugeMetric(wr, r, currentStorage)

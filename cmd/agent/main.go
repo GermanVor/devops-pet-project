@@ -19,11 +19,6 @@ var Config = &common.AgentConfig{
 	ReportInterval: 10 * time.Second,
 }
 
-func init() {
-	common.InitAgentEnvConfig(Config)
-	common.InitAgentFlagConfig(Config)
-}
-
 func Start(ctx context.Context, endpointURL string, client http.Client) {
 	pollTicker := time.NewTicker(Config.PollInterval)
 	defer pollTicker.Stop()
@@ -106,7 +101,10 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 }
 
 func main() {
+	common.InitAgentFlagConfig(Config)
 	flag.Parse()
+	common.InitAgentEnvConfig(Config)
+
 	ctx := context.Background()
 
 	Start(ctx, "http://"+Config.Address, *http.DefaultClient)

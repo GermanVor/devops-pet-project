@@ -108,7 +108,6 @@ func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage *storage.S
 		return
 	}
 
-	// reuse metric object from http.Request.Body
 	writeMetric := func() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

@@ -37,15 +37,21 @@ type ServerConfig struct {
 func InitAgentEnvConfig(config *AgentConfig) *AgentConfig {
 	godotenv.Load(".env")
 
-	if pollInterval, err := time.ParseDuration(os.Getenv("POLL_INTERVAL")); err == nil {
-		config.PollInterval = pollInterval
+	if pollIntervalStr, ok := os.LookupEnv("POLL_INTERVAL"); ok {
+		if pollInterval, err := time.ParseDuration(pollIntervalStr); err == nil {
+			config.PollInterval = pollInterval
+		}
 	}
 
-	if reportInterval, err := time.ParseDuration(os.Getenv("REPORT_INTERVAL")); err == nil {
-		config.ReportInterval = reportInterval
+	if reportIntervalStr, ok := os.LookupEnv("REPORT_INTERVAL"); ok {
+		if reportInterval, err := time.ParseDuration(reportIntervalStr); err == nil {
+			config.ReportInterval = reportInterval
+		}
 	}
 
-	config.Address = os.Getenv("ADDRESS")
+	if address, ok := os.LookupEnv("ADDRESS"); ok {
+		config.Address = address
+	}
 
 	return config
 }
@@ -83,17 +89,25 @@ func InitAgentFlagConfig(config *AgentConfig) *AgentConfig {
 func InitServerEnvConfig(config *ServerConfig) *ServerConfig {
 	godotenv.Load(".env")
 
-	config.StoreFile = os.Getenv("STORE_FILE")
-
-	if isRestore, err := strconv.ParseBool(os.Getenv("RESTORE")); err == nil {
-		config.IsRestore = isRestore
+	if storeFile, ok := os.LookupEnv("STORE_FILE"); ok {
+		config.StoreFile = storeFile
 	}
 
-	if storeInterval, err := time.ParseDuration(os.Getenv("STORE_INTERVAL")); err == nil {
-		config.StoreInterval = storeInterval
+	if isRestoreStr, ok := os.LookupEnv("RESTORE"); ok {
+		if isRestore, err := strconv.ParseBool(isRestoreStr); err == nil {
+			config.IsRestore = isRestore
+		}
 	}
 
-	config.Address = os.Getenv("ADDRESS")
+	if storeIntervalStr, ok := os.LookupEnv("STORE_INTERVAL"); ok {
+		if storeInterval, err := time.ParseDuration(storeIntervalStr); err == nil {
+			config.StoreInterval = storeInterval
+		}
+	}
+
+	if address, ok := os.LookupEnv("ADDRESS"); ok {
+		config.Address = address
+	}
 
 	return config
 }
@@ -106,16 +120,7 @@ const iUsage = "The time in seconds after which the current server readings are 
 func InitServerFlagConfig(config *ServerConfig) *ServerConfig {
 	flag.StringVar(&config.Address, "a", config.Address, aUsage)
 	flag.StringVar(&config.StoreFile, "f", config.StoreFile, fUsage)
-
-	flag.Func("r", rUsage, func(s string) error {
-		isRestore, err := strconv.ParseBool(s)
-
-		if err == nil {
-			config.IsRestore = isRestore
-		}
-
-		return err
-	})
+	flag.BoolVar(&config.IsRestore, "r", config.IsRestore, rUsage)
 
 	flag.Func("i", iUsage, func(s string) error {
 		storeInterval, err := time.ParseDuration(s)

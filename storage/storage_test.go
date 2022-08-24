@@ -62,11 +62,12 @@ func compareBackupAndStorage(t *testing.T, backupObject *storage.BackupObject, s
 
 func TestMain(t *testing.T) {
 	t.Run("Init from backup file", func(t *testing.T) {
-		backupFileName := "./backupTestFile"
+		backupFileName := "/tmp/devops-metrics-db.json"
 
 		backupObject := createBackupObject()
 
 		file, err := os.OpenFile(backupFileName, os.O_WRONLY|os.O_CREATE, 0777)
+
 		require.NoError(t, err)
 		defer file.Close()
 		defer os.Remove(file.Name())

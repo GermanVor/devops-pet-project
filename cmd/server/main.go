@@ -21,13 +21,10 @@ var Config = &common.ServerConfig{
 	IsRestore:     true,
 }
 
-func init() {
-	common.InitServerEnvConfig(Config)
-	common.InitServerFlagConfig(Config)
-}
-
 func main() {
+	common.InitServerFlagConfig(Config)
 	flag.Parse()
+	common.InitServerEnvConfig(Config)
 
 	fmt.Println("Config is", Config)
 

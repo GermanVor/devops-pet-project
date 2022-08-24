@@ -22,7 +22,8 @@ import (
 )
 
 func createTestEnvironment() (*storage.Storage, string, func()) {
-	currentStorage := storage.Init()
+	currentStorage, _, storageDestructor := storage.Init(nil)
+
 	r := chi.NewRouter()
 
 	handlers.InitRouter(r, currentStorage)
@@ -30,6 +31,7 @@ func createTestEnvironment() (*storage.Storage, string, func()) {
 	ts := httptest.NewServer(r)
 
 	destructor := func() {
+		storageDestructor()
 		ts.Close()
 	}
 
@@ -49,9 +51,7 @@ func TestServerOperations(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -62,14 +62,11 @@ func TestServerOperations(t *testing.T) {
 		}
 
 		{
-
 			req, err := http.NewRequest(http.MethodGet, endpointURL+"/value/gauge/"+gaugeMetricName, nil)
 			require.NoError(t, err)
 
 			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -93,9 +90,7 @@ func TestServerOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -113,9 +108,7 @@ func TestServerOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -132,9 +125,7 @@ func TestServerOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -152,9 +143,7 @@ func TestServerOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -175,9 +164,7 @@ func TestServerOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -201,9 +188,7 @@ func TestServerOperations(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 		}
 
@@ -215,9 +200,7 @@ func TestServerOperations(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 		}
 
@@ -225,9 +208,7 @@ func TestServerOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -268,9 +249,7 @@ func TestServerOperationsV2(t *testing.T) {
 
 		{
 			resp, err := http.DefaultClient.Post(endpointURL+"/update/", "application/json", bytes.NewReader(jsonResp))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -281,9 +260,7 @@ func TestServerOperationsV2(t *testing.T) {
 
 		{
 			resp, err := http.DefaultClient.Post(endpointURL+"/value/", "application/json", bytes.NewReader(jsonResp))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -314,9 +291,7 @@ func TestServerOperationsV2(t *testing.T) {
 
 		{
 			resp, err := http.DefaultClient.Post(endpointURL+"/update/", "application/json", bytes.NewReader(jsonResp))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -327,9 +302,7 @@ func TestServerOperationsV2(t *testing.T) {
 
 		{
 			resp, err := http.DefaultClient.Post(endpointURL+"/value/", "application/json", bytes.NewReader(jsonResp))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)

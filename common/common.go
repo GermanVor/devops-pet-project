@@ -2,7 +2,6 @@ package common
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -85,9 +84,6 @@ func InitServerEnvConfig(config *ServerConfig) *ServerConfig {
 	godotenv.Load(".env")
 
 	config.StoreFile = os.Getenv("STORE_FILE")
-	if config.StoreFile == "" {
-		fmt.Println("Empty STORE_FILE. Server will not save data in local file")
-	}
 
 	if isRestore, err := strconv.ParseBool(os.Getenv("RESTORE")); err == nil {
 		config.IsRestore = isRestore

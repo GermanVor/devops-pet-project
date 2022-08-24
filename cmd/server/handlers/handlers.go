@@ -40,13 +40,13 @@ func UpdateCounterMetric(w http.ResponseWriter, r *http.Request, currentStorage 
 		return
 	}
 
-	currentStorage.IncreaseCounterMetric(metricName, metricValue)
+	currentStorage.SetCounterMetric(metricName, metricValue)
 
 	w.WriteHeader(http.StatusOK)
 }
 
 func UpdateMetric(w http.ResponseWriter, r *http.Request, currentStorage *storage.Storage) {
-	metric := common.Metrics{}
+	metric := &common.Metrics{}
 
 	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -58,7 +58,7 @@ func UpdateMetric(w http.ResponseWriter, r *http.Request, currentStorage *storag
 		currentStorage.SetGaugeMetric(metric.ID, *metric.Value)
 
 	case common.CounterMetricName:
-		currentStorage.IncreaseCounterMetric(metric.ID, *metric.Delta)
+		currentStorage.SetCounterMetric(metric.ID, *metric.Delta)
 
 	default:
 		w.WriteHeader(http.StatusBadRequest)

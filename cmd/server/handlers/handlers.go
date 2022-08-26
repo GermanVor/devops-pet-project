@@ -108,7 +108,7 @@ func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.St
 		return
 	}
 
-	writeMetric := func() {
+	printMetric := func() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
@@ -124,13 +124,15 @@ func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.St
 		if value, ok := currentStorage.GetGaugeMetric(metric.ID); ok {
 			metric.Value = &value
 
-			writeMetric()
+			printMetric()
+			return
 		}
 	case common.CounterMetricName:
 		if value, ok := currentStorage.GetCounterMetric(metric.ID); ok {
 			metric.Delta = &value
 
-			writeMetric()
+			printMetric()
+			return
 		}
 	}
 

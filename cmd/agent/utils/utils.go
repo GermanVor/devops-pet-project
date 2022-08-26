@@ -97,6 +97,7 @@ func BuildRequestV2(endpointURL, metricType, metricName, metricValue string) (*h
 	}
 
 	req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/", bytes.NewBuffer(metricBytes))
+	req.Header.Add("Content-Type", "application/json")
 	if err != nil {
 		return nil, err
 	}

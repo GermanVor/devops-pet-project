@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
-	"github.com/GermanVor/devops-pet-project/common"
+	"github.com/GermanVor/devops-pet-project/internal/common"
 )
 
 func CollectMetrics() *metrics.RuntimeMetrics {

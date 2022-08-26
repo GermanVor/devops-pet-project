@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GermanVor/devops-pet-project/storage"
+	"github.com/GermanVor/devops-pet-project/internal/storage"
 	"github.com/bmizerany/assert"
 	"github.com/stretchr/testify/require"
 )

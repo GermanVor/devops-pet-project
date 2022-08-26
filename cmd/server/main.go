@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
-	"github.com/GermanVor/devops-pet-project/common"
-	"github.com/GermanVor/devops-pet-project/storage"
+	"github.com/GermanVor/devops-pet-project/internal/common"
+	"github.com/GermanVor/devops-pet-project/internal/storage"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 )

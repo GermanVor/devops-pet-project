@@ -10,7 +10,7 @@ import (
 
 	metrics "github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
 	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
-	"github.com/GermanVor/devops-pet-project/common"
+	"github.com/GermanVor/devops-pet-project/internal/common"
 )
 
 var Config = &common.AgentConfig{

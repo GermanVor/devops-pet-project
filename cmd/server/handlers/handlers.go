@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 )
 
-func UpdateGaugeMetric(w http.ResponseWriter, r *http.Request, currentStorage *storage.Storage) {
+func UpdateGaugeMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
 	w.Header().Add("Content-Type", "application/json")
 
 	metricName := chi.URLParam(r, "metricName")
@@ -29,7 +29,7 @@ func UpdateGaugeMetric(w http.ResponseWriter, r *http.Request, currentStorage *s
 	w.WriteHeader(http.StatusOK)
 }
 
-func UpdateCounterMetric(w http.ResponseWriter, r *http.Request, currentStorage *storage.Storage) {
+func UpdateCounterMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
 	w.Header().Add("Content-Type", "application/json")
 
 	metricName := chi.URLParam(r, "metricName")
@@ -45,7 +45,7 @@ func UpdateCounterMetric(w http.ResponseWriter, r *http.Request, currentStorage 
 	w.WriteHeader(http.StatusOK)
 }
 
-func UpdateMetric(w http.ResponseWriter, r *http.Request, currentStorage *storage.Storage) {
+func UpdateMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
 	metric := &common.Metrics{}
 
 	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
@@ -68,7 +68,7 @@ func UpdateMetric(w http.ResponseWriter, r *http.Request, currentStorage *storag
 	w.WriteHeader(http.StatusOK)
 }
 
-func GetGaugeMetric(w http.ResponseWriter, r *http.Request, currentStorage *storage.Storage) {
+func GetGaugeMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
 	w.Header().Add("Content-Type", "text/plain")
 
 	metricName := chi.URLParam(r, "metricName")
@@ -82,7 +82,7 @@ func GetGaugeMetric(w http.ResponseWriter, r *http.Request, currentStorage *stor
 	}
 }
 
-func GetCounterMetric(w http.ResponseWriter, r *http.Request, currentStorage *storage.Storage) {
+func GetCounterMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
 	w.Header().Add("Content-Type", "text/plain")
 
 	metricName := chi.URLParam(r, "metricName")
@@ -100,7 +100,7 @@ func missedMetricNameHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
 
-func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage *storage.Storage) {
+func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
 	metric := common.Metrics{}
 
 	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
@@ -146,7 +146,7 @@ var defaultCompressibleContentTypes = []string{
 	"text/xml",
 }
 
-func InitRouter(r *chi.Mux, currentStorage *storage.Storage) *chi.Mux {
+func InitRouter(r *chi.Mux, currentStorage storage.StorageInterface) *chi.Mux {
 	r.Use(middleware.Compress(5, defaultCompressibleContentTypes...))
 
 	r.Route("/update", func(r chi.Router) {

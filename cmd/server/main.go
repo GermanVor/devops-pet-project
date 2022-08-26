@@ -28,21 +28,20 @@ func main() {
 
 	fmt.Println("Config is", Config)
 
-	initOptions := &storage.InitOptions{}
-
-	if Config.StoreFile != "" {
-		backupFilePath := Config.StoreFile
-		initOptions.BackupFilePath = &backupFilePath
-		initOptions.BackupInterval = Config.StoreInterval
-	}
+	var currentStorage storage.StorageInterface
+	var initialFilePath *string
 
 	if Config.IsRestore {
-		initialFilePath := Config.StoreFile
-		initOptions.InitialFilePath = &initialFilePath
+		initialFilePath = &Config.StoreFile
 	}
 
-	currentStorage, _, destructor := storage.Init(initOptions)
-	defer destructor()
+	if Config.StoreFile != "" {
+		storage, destructor, _ := storage.InitWithBackup(Config.StoreFile, Config.StoreInterval, initialFilePath)
+		currentStorage = storage
+		defer destructor()
+	} else {
+		currentStorage, _ = storage.Init(initialFilePath)
+	}
 
 	r := chi.NewRouter()
 

@@ -67,7 +67,6 @@ func TestMain(t *testing.T) {
 		backupObject := createBackupObject()
 
 		file, err := os.OpenFile(backupFileName, os.O_WRONLY|os.O_CREATE, 0777)
-
 		require.NoError(t, err)
 		defer file.Close()
 		defer os.Remove(file.Name())
@@ -77,14 +76,8 @@ func TestMain(t *testing.T) {
 		_, err = file.WriteAt(backupBytes, 0)
 		require.NoError(t, err)
 
-		storage, initOutputs, destructor := storage.Init(&storage.InitOptions{
-			InitialFilePath: &backupFileName,
-			BackupFilePath:  nil,
-			BackupInterval:  time.Duration(0),
-		})
-		defer destructor()
-
-		require.NoError(t, initOutputs.InitialFileError)
+		storage, err := storage.Init(&backupFileName)
+		require.NoError(t, err)
 
 		compareBackupAndStorage(t, backupObject, storage)
 	})
@@ -95,11 +88,7 @@ func TestMain(t *testing.T) {
 		gaugeMetrics := createGaugeMetrics()
 		counterMetrics := createCounterMetrics()
 
-		stor, _, destructor := storage.Init(&storage.InitOptions{
-			InitialFilePath: nil,
-			BackupFilePath:  &backupFileName,
-			BackupInterval:  time.Duration(0),
-		})
+		stor, destructor, _ := storage.InitWithBackup(backupFileName, time.Duration(0), nil)
 		defer destructor()
 
 		for name, value := range gaugeMetrics {
@@ -112,6 +101,7 @@ func TestMain(t *testing.T) {
 		file, err := os.OpenFile(backupFileName, os.O_RDONLY, 0777)
 		require.NoError(t, err)
 		defer file.Close()
+		defer os.Remove(file.Name())
 
 		backupObject := &storage.BackupObject{
 			GaugeMetrics:   make(storage.GaugeMetricsStorage),
@@ -122,7 +112,5 @@ func TestMain(t *testing.T) {
 
 		compareMaps(t, gaugeMetrics, backupObject.GaugeMetrics)
 		compareMaps(t, counterMetrics, backupObject.CounterMetrics)
-
-		os.Remove(backupFileName)
 	})
 }

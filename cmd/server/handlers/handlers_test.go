@@ -22,7 +22,7 @@ import (
 )
 
 func createTestEnvironment() (*storage.Storage, string, func()) {
-	currentStorage, _, storageDestructor := storage.Init(nil)
+	currentStorage, _ := storage.Init(nil)
 
 	r := chi.NewRouter()
 
@@ -31,7 +31,6 @@ func createTestEnvironment() (*storage.Storage, string, func()) {
 	ts := httptest.NewServer(r)
 
 	destructor := func() {
-		storageDestructor()
 		ts.Close()
 	}
 

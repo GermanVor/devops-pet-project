@@ -11,15 +11,34 @@ import (
 type GaugeMetricsStorage map[string]float64
 type CounterMetricsStorage map[string]int64
 
+type StorageInterface interface {
+	getGaugeMetrics() (GaugeMetricsStorage, func())
+	GetGaugeMetric(string) (float64, bool)
+	SetGaugeMetric(string, float64)
+	ForEachGaugeMetric(func(string, float64))
+
+	getCounterMetrics() (CounterMetricsStorage, func())
+	GetCounterMetric(string) (int64, bool)
+	SetCounterMetric(string, int64)
+	ForEachCounterMetric(func(string, int64))
+}
+
 type Storage struct {
+	StorageInterface
+
 	gaugeMap    GaugeMetricsStorage
 	gaugeMapRWM *sync.Mutex
 
 	counterMap    CounterMetricsStorage
 	counterMapRWM *sync.Mutex
+}
 
-	backupFile     *os.File
+type WithBackup struct {
+	*Storage
+
+	backupFilePath string
 	backupInterval time.Duration
+	fileMux        *sync.Mutex
 }
 
 type BackupObject struct {
@@ -48,56 +67,7 @@ func createStorageFromBackup(storage *Storage, initialFilePath string) error {
 	return err
 }
 
-func withBackup(storage *Storage, backupFilePath string, backupInterval time.Duration) error {
-	file, err := os.OpenFile(backupFilePath, os.O_WRONLY|os.O_CREATE, 0777)
-	if err != nil {
-		return err
-	}
-
-	storage.backupFile = file
-	storage.backupInterval = backupInterval
-
-	return nil
-}
-
-func makeBackup(stor *Storage) error {
-	stor.gaugeMapRWM.Lock()
-	defer stor.gaugeMapRWM.Unlock()
-
-	stor.counterMapRWM.Lock()
-	defer stor.counterMapRWM.Unlock()
-
-	backup := BackupObject{
-		GaugeMetrics:   stor.gaugeMap,
-		CounterMetrics: stor.counterMap,
-	}
-
-	backupBytes, _ := json.Marshal(&backup)
-
-	err := stor.backupFile.Truncate(0)
-	if err != nil {
-		return err
-	}
-
-	_, err = stor.backupFile.WriteAt(backupBytes, 0)
-
-	return err
-}
-
-type InitOptions struct {
-	InitialFilePath *string
-	BackupFilePath  *string
-	BackupInterval  time.Duration
-}
-
-type InitOutputs struct {
-	InitialFileError error
-	BackupFileTicker *time.Ticker
-}
-
-type Destructor func()
-
-func Init(opts *InitOptions) (*Storage, InitOutputs, Destructor) {
+func Init(initialFilePath *string) (*Storage, error) {
 	storage := &Storage{
 		gaugeMapRWM:   &sync.Mutex{},
 		counterMapRWM: &sync.Mutex{},
@@ -106,113 +76,150 @@ func Init(opts *InitOptions) (*Storage, InitOutputs, Destructor) {
 		counterMap: make(CounterMetricsStorage),
 	}
 
-	initOutputs := InitOutputs{}
+	var err error
 
-	if opts != nil && opts.InitialFilePath != nil {
-		initOutputs.InitialFileError = createStorageFromBackup(storage, *opts.InitialFilePath)
-
-		if initOutputs.InitialFileError == nil {
-			fmt.Println("Storage is successfully restored from backup")
-		} else {
-			fmt.Println("Storage is not restored from backup,", initOutputs.InitialFileError)
-		}
-	}
-
-	if opts != nil && opts.BackupFilePath != nil {
-		backupFilePath := *opts.BackupFilePath
-		err := withBackup(storage, backupFilePath, opts.BackupInterval)
-
-		if err == nil && opts.BackupInterval != time.Duration(0) {
-			initOutputs.BackupFileTicker = time.NewTicker(opts.BackupInterval)
-
-			go func() {
-				for {
-					<-initOutputs.BackupFileTicker.C
-					err := makeBackup(storage)
-
-					if err != nil {
-						fmt.Println("Storage can not create backup, ", err)
-					}
-				}
-			}()
-		}
+	if initialFilePath != nil {
+		err = createStorageFromBackup(storage, *initialFilePath)
 
 		if err == nil {
-			fmt.Println("Storage is connected with backup file,", backupFilePath)
+			fmt.Println("Storage is successfully restored from backup")
 		} else {
-			fmt.Println("Storage is not connected with backup file,", backupFilePath, err)
+			fmt.Println("Storage is not restored from backup,", err)
 		}
 	}
 
-	destructor := func() {
-		if initOutputs.BackupFileTicker != nil {
-			initOutputs.BackupFileTicker.Stop()
-		}
-
-		if storage.backupFile != nil {
-			storage.backupFile.Close()
-		}
-	}
-
-	return storage, initOutputs, destructor
+	return storage, err
 }
 
-func triggerBackup(stor *Storage) {
-	if stor.backupFile != nil && stor.backupInterval == time.Duration(0) {
-		err := makeBackup(stor)
+func writeStoreBackup(stor StorageInterface, backupFilePath string) error {
+	gaugeMap, unlockGaugeMetrics := stor.getGaugeMetrics()
+	defer unlockGaugeMetrics()
 
-		if err != nil {
-			fmt.Println("Storage can not create backup, ", err)
-		}
+	counterMap, unlockCounterMap := stor.getCounterMetrics()
+	defer unlockCounterMap()
+
+	backup := BackupObject{
+		GaugeMetrics:   gaugeMap,
+		CounterMetrics: counterMap,
 	}
+
+	backupBytes, _ := json.Marshal(&backup)
+	return os.WriteFile(backupFilePath, backupBytes, 0644)
+}
+
+type Destructor func()
+
+func InitWithBackup(backupFilePath string, backupInterval time.Duration, initialFilePath *string) (StorageInterface, Destructor, error) {
+	storage, err := Init(initialFilePath)
+	destructor := func() {}
+
+	fmt.Println("Storage is connected with backup file", backupFilePath)
+
+	if backupInterval != time.Duration(0) {
+		ticker := time.NewTicker(backupInterval)
+
+		destructor = func() {
+			if ticker != nil {
+				ticker.Stop()
+			}
+		}
+
+		go func() {
+			for {
+				<-ticker.C
+				err := writeStoreBackup(storage, backupFilePath)
+
+				if err != nil {
+					fmt.Println("Couldnot create backup", err)
+				}
+			}
+		}()
+
+		return storage, destructor, err
+	}
+
+	currentStorage := &WithBackup{
+		backupFilePath: backupFilePath,
+		backupInterval: backupInterval,
+		fileMux:        &sync.Mutex{},
+		Storage:        storage,
+	}
+
+	return currentStorage, destructor, err
+}
+
+func (stor *WithBackup) writeBackup() error {
+	stor.fileMux.Lock()
+	defer stor.fileMux.Unlock()
+
+	return writeStoreBackup(stor, stor.backupFilePath)
+}
+
+func (stor *Storage) getGaugeMetrics() (GaugeMetricsStorage, func()) {
+	stor.gaugeMapRWM.Lock()
+
+	return stor.gaugeMap, stor.gaugeMapRWM.Unlock
 }
 
 func (stor *Storage) SetGaugeMetric(metricName string, value float64) {
-	stor.gaugeMapRWM.Lock()
-	stor.gaugeMap[metricName] = value
-	stor.gaugeMapRWM.Unlock()
+	gaugeMap, deferFunc := stor.getGaugeMetrics()
+	defer deferFunc()
 
-	triggerBackup(stor)
+	gaugeMap[metricName] = value
+}
+
+func (stor *WithBackup) SetGaugeMetric(metricName string, value float64) {
+	stor.Storage.SetGaugeMetric(metricName, value)
+	stor.writeBackup()
 }
 
 func (stor *Storage) GetGaugeMetric(metricName string) (float64, bool) {
-	stor.gaugeMapRWM.Lock()
-	defer stor.gaugeMapRWM.Unlock()
+	gaugeMap, deferFunc := stor.getGaugeMetrics()
+	defer deferFunc()
 
-	value, ok := stor.gaugeMap[metricName]
+	value, ok := gaugeMap[metricName]
 	return value, ok
 }
 
 func (stor *Storage) ForEachGaugeMetric(handler func(metricName string, value float64)) {
-	stor.gaugeMapRWM.Lock()
-	defer stor.gaugeMapRWM.Unlock()
+	gaugeMap, unlockGaugeMetrics := stor.getGaugeMetrics()
+	defer unlockGaugeMetrics()
 
-	for a, b := range stor.gaugeMap {
+	for a, b := range gaugeMap {
 		handler(a, b)
 	}
+}
+
+func (stor *Storage) getCounterMetrics() (CounterMetricsStorage, func()) {
+	stor.counterMapRWM.Lock()
+	return stor.counterMap, stor.counterMapRWM.Unlock
 }
 
 func (stor *Storage) GetCounterMetric(metricName string) (int64, bool) {
-	stor.counterMapRWM.Lock()
-	defer stor.counterMapRWM.Unlock()
+	counterMap, unlockCounterMap := stor.getCounterMetrics()
+	defer unlockCounterMap()
 
-	value, ok := stor.counterMap[metricName]
+	value, ok := counterMap[metricName]
 	return value, ok
 }
 
-func (stor *Storage) ForEachCounterMetric(handler func(metricName string, value int64)) {
-	stor.counterMapRWM.Lock()
-	defer stor.counterMapRWM.Unlock()
-
-	for a, b := range stor.counterMap {
-		handler(a, b)
-	}
+func (stor *WithBackup) SetCounterMetric(metricName string, value int64) {
+	stor.Storage.SetCounterMetric(metricName, value)
+	stor.writeBackup()
 }
 
 func (stor *Storage) SetCounterMetric(metricName string, count int64) {
-	stor.counterMapRWM.Lock()
-	stor.counterMap[metricName] += count
-	stor.counterMapRWM.Unlock()
+	counterMap, unlockCounterMap := stor.getCounterMetrics()
+	defer unlockCounterMap()
 
-	triggerBackup(stor)
+	counterMap[metricName] += count
+}
+
+func (stor *Storage) ForEachCounterMetric(handler func(metricName string, value int64)) {
+	counterMap, unlockCounterMap := stor.getCounterMetrics()
+	defer unlockCounterMap()
+
+	for a, b := range counterMap {
+		handler(a, b)
+	}
 }

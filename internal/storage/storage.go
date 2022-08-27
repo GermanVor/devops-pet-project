@@ -38,7 +38,6 @@ type WithBackup struct {
 
 	backupFilePath string
 	backupInterval time.Duration
-	fileMux        *sync.Mutex
 }
 
 type BackupObject struct {
@@ -141,7 +140,6 @@ func InitWithBackup(backupFilePath string, backupInterval time.Duration, initial
 	currentStorage := &WithBackup{
 		backupFilePath: backupFilePath,
 		backupInterval: backupInterval,
-		fileMux:        &sync.Mutex{},
 		Storage:        storage,
 	}
 
@@ -149,9 +147,6 @@ func InitWithBackup(backupFilePath string, backupInterval time.Duration, initial
 }
 
 func (stor *WithBackup) writeBackup() error {
-	stor.fileMux.Lock()
-	defer stor.fileMux.Unlock()
-
 	return writeStoreBackup(stor, stor.backupFilePath)
 }
 

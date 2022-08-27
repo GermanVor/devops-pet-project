@@ -27,20 +27,22 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 	defer reportInterval.Stop()
 
 	var mPointer *metrics.RuntimeMetrics
+	pollCount := metrics.Counter(0)
+
 	mux := sync.Mutex{}
 
 	go func() {
-		pollCount := metrics.Counter(0)
-
 		for {
 			select {
 			case <-pollTicker.C:
 				metricsPointer := utils.CollectMetrics()
-				metricsPointer.PollCount = pollCount
-				pollCount++
 
 				mux.Lock()
+
+				pollCount++
+				metricsPointer.PollCount = pollCount
 				mPointer = metricsPointer
+
 				mux.Unlock()
 			case <-ctx.Done():
 				return
@@ -53,26 +55,29 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 			select {
 			case <-reportInterval.C:
 				mux.Lock()
+
 				metricsCopy := *mPointer
+				pollCount = 0
+
 				mux.Unlock()
 
-				metrics.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
-					go func() {
-						req, err := utils.BuildRequest(endpointURL, metricType, metricName, metricValue)
-						if err != nil {
-							fmt.Println(err)
-							return
-						}
+				// metrics.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
+				// 	go func() {
+				// 		req, err := utils.BuildRequest(endpointURL, metricType, metricName, metricValue)
+				// 		if err != nil {
+				// 			fmt.Println(err)
+				// 			return
+				// 		}
 
-						resp, err := client.Do(req)
-						if err != nil {
-							fmt.Println(err)
-							return
-						}
+				// 		resp, err := client.Do(req)
+				// 		if err != nil {
+				// 			fmt.Println(err)
+				// 			return
+				// 		}
 
-						resp.Body.Close()
-					}()
-				})
+				// 		resp.Body.Close()
+				// 	}()
+				// })
 
 				metrics.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
 					go func() {

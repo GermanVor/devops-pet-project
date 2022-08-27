@@ -56,9 +56,11 @@ func InitAgentEnvConfig(config *AgentConfig) *AgentConfig {
 	return config
 }
 
-const agentAddrUsage = "Address to send metrics"
-const agentPollUsage = "The time in seconds when Agent collects Metrics."
-const agentReportUsage = "The time in seconds when Agent sent Metrics to the Server."
+const (
+	agentAddrUsage   = "Address to send metrics"
+	agentPollUsage   = "The time in seconds when Agent collects Metrics."
+	agentReportUsage = "The time in seconds when Agent sent Metrics to the Server."
+)
 
 func InitAgentFlagConfig(config *AgentConfig) *AgentConfig {
 	flag.StringVar(&config.Address, "a", config.Address, agentAddrUsage)
@@ -112,10 +114,12 @@ func InitServerEnvConfig(config *ServerConfig) *ServerConfig {
 	return config
 }
 
-const aUsage = "Address to listen on"
-const fUsage = "The name of the file in which Server will store Metrics (Empty name turn off storing Metrics)"
-const rUsage = "Bool value. `true` - At startup Server will try to load data from `STORE_FILE`. `false` - Server will create new `STORE_FILE` file in startup."
-const iUsage = "The time in seconds after which the current server readings are reset to disk \n (value 0 — makes the recording synchronous)."
+const (
+	aUsage = "Address to listen on"
+	fUsage = "The name of the file in which Server will store Metrics (Empty name turn off storing Metrics)"
+	rUsage = "Bool value. `true` - At startup Server will try to load data from `STORE_FILE`. `false` - Server will create new `STORE_FILE` file in startup."
+	iUsage = "The time in seconds after which the current server readings are reset to disk \n (value 0 — makes the recording synchronous)."
+)
 
 func InitServerFlagConfig(config *ServerConfig) *ServerConfig {
 	flag.StringVar(&config.Address, "a", config.Address, aUsage)

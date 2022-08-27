@@ -12,12 +12,10 @@ type GaugeMetricsStorage map[string]float64
 type CounterMetricsStorage map[string]int64
 
 type StorageInterface interface {
-	getGaugeMetrics() (GaugeMetricsStorage, func())
 	GetGaugeMetric(string) (float64, bool)
 	SetGaugeMetric(string, float64)
 	ForEachGaugeMetric(func(string, float64))
 
-	getCounterMetrics() (CounterMetricsStorage, func())
 	GetCounterMetric(string) (int64, bool)
 	SetCounterMetric(string, int64)
 	ForEachCounterMetric(func(string, int64))
@@ -27,10 +25,10 @@ type Storage struct {
 	StorageInterface
 
 	gaugeMap    GaugeMetricsStorage
-	gaugeMapRWM sync.Mutex
+	gaugeMapRWM sync.RWMutex
 
 	counterMap    CounterMetricsStorage
-	counterMapRWM sync.Mutex
+	counterMapRWM sync.RWMutex
 }
 
 type BackupStorageWrapper struct {
@@ -86,18 +84,19 @@ func Init(initialFilePath *string) (*Storage, error) {
 }
 
 func writeStoreBackup(stor *Storage, backupFilePath string) error {
-	gaugeMap, unlockGaugeMetrics := stor.getGaugeMetrics()
-	defer unlockGaugeMetrics()
-
-	counterMap, unlockCounterMap := stor.getCounterMetrics()
-	defer unlockCounterMap()
+	stor.gaugeMapRWM.RLock()
+	stor.counterMapRWM.RLock()
 
 	backup := BackupObject{
-		GaugeMetrics:   gaugeMap,
-		CounterMetrics: counterMap,
+		GaugeMetrics:   stor.gaugeMap,
+		CounterMetrics: stor.counterMap,
 	}
 
 	backupBytes, _ := json.Marshal(&backup)
+
+	stor.gaugeMapRWM.RUnlock()
+	stor.counterMapRWM.RUnlock()
+
 	return os.WriteFile(backupFilePath, backupBytes, 0644)
 }
 
@@ -135,75 +134,60 @@ func InitBackupTicker(storage *Storage, backupFilePath string, backupInterval ti
 	return stopTicker
 }
 
-func (stor *BackupStorageWrapper) writeBackup() error {
-	return writeStoreBackup(stor.Storage, stor.backupFilePath)
-}
-
-func (stor *Storage) getGaugeMetrics() (GaugeMetricsStorage, func()) {
-	stor.gaugeMapRWM.Lock()
-
-	return stor.gaugeMap, stor.gaugeMapRWM.Unlock
-}
-
 func (stor *Storage) SetGaugeMetric(metricName string, value float64) {
-	gaugeMap, deferFunc := stor.getGaugeMetrics()
-	defer deferFunc()
+	stor.gaugeMapRWM.Lock()
+	defer stor.gaugeMapRWM.Unlock()
 
-	gaugeMap[metricName] = value
+	stor.gaugeMap[metricName] = value
 }
 
 func (stor *BackupStorageWrapper) SetGaugeMetric(metricName string, value float64) {
 	stor.Storage.SetGaugeMetric(metricName, value)
-	stor.writeBackup()
+	writeStoreBackup(stor.Storage, stor.backupFilePath)
 }
 
 func (stor *Storage) GetGaugeMetric(metricName string) (float64, bool) {
-	gaugeMap, deferFunc := stor.getGaugeMetrics()
-	defer deferFunc()
+	stor.gaugeMapRWM.RLock()
+	defer stor.gaugeMapRWM.RUnlock()
 
-	value, ok := gaugeMap[metricName]
+	value, ok := stor.gaugeMap[metricName]
 	return value, ok
 }
 
 func (stor *Storage) ForEachGaugeMetric(handler func(metricName string, value float64)) {
-	gaugeMap, unlockGaugeMetrics := stor.getGaugeMetrics()
-	defer unlockGaugeMetrics()
+	stor.gaugeMapRWM.RLock()
+	defer stor.gaugeMapRWM.RUnlock()
 
-	for a, b := range gaugeMap {
+	for a, b := range stor.gaugeMap {
 		handler(a, b)
 	}
 }
 
-func (stor *Storage) getCounterMetrics() (CounterMetricsStorage, func()) {
-	stor.counterMapRWM.Lock()
-	return stor.counterMap, stor.counterMapRWM.Unlock
-}
-
 func (stor *Storage) GetCounterMetric(metricName string) (int64, bool) {
-	counterMap, unlockCounterMap := stor.getCounterMetrics()
-	defer unlockCounterMap()
+	stor.counterMapRWM.RLock()
+	defer stor.counterMapRWM.RUnlock()
 
-	value, ok := counterMap[metricName]
+	value, ok := stor.counterMap[metricName]
 	return value, ok
 }
 
 func (stor *BackupStorageWrapper) SetCounterMetric(metricName string, value int64) {
 	stor.Storage.SetCounterMetric(metricName, value)
-	stor.writeBackup()
+	writeStoreBackup(stor.Storage, stor.backupFilePath)
 }
 
 func (stor *Storage) SetCounterMetric(metricName string, count int64) {
-	counterMap, unlockCounterMap := stor.getCounterMetrics()
-	defer unlockCounterMap()
+	stor.counterMapRWM.Lock()
+	defer stor.counterMapRWM.Unlock()
 
-	counterMap[metricName] += count
+	stor.counterMap[metricName] += count
 }
 
 func (stor *Storage) ForEachCounterMetric(handler func(metricName string, value int64)) {
-	counterMap, unlockCounterMap := stor.getCounterMetrics()
-	defer unlockCounterMap()
+	stor.counterMapRWM.RLock()
+	defer stor.counterMapRWM.RUnlock()
 
-	for a, b := range counterMap {
+	for a, b := range stor.counterMap {
 		handler(a, b)
 	}
 }

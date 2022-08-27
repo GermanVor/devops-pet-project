@@ -27,10 +27,10 @@ type Storage struct {
 	StorageInterface
 
 	gaugeMap    GaugeMetricsStorage
-	gaugeMapRWM *sync.Mutex
+	gaugeMapRWM sync.Mutex
 
 	counterMap    CounterMetricsStorage
-	counterMapRWM *sync.Mutex
+	counterMapRWM sync.Mutex
 }
 
 type WithBackup struct {
@@ -68,9 +68,6 @@ func createStorageFromBackup(storage *Storage, initialFilePath string) error {
 
 func Init(initialFilePath *string) (*Storage, error) {
 	storage := &Storage{
-		gaugeMapRWM:   &sync.Mutex{},
-		counterMapRWM: &sync.Mutex{},
-
 		gaugeMap:   make(GaugeMetricsStorage),
 		counterMap: make(CounterMetricsStorage),
 	}

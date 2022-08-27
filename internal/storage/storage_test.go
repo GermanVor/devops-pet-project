@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 	"github.com/bmizerany/assert"
@@ -88,8 +87,8 @@ func TestMain(t *testing.T) {
 		gaugeMetrics := createGaugeMetrics()
 		counterMetrics := createCounterMetrics()
 
-		stor, destructor, _ := storage.InitWithBackup(backupFileName, time.Duration(0), nil)
-		defer destructor()
+		baseStor, _ := storage.Init(nil)
+		stor  := storage.WithBackup(baseStor, backupFileName)
 
 		for name, value := range gaugeMetrics {
 			stor.SetGaugeMetric(name, value)

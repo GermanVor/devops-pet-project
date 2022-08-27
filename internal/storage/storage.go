@@ -33,11 +33,9 @@ type Storage struct {
 	counterMapRWM sync.Mutex
 }
 
-type WithBackup struct {
+type BackupStorageWrapper struct {
 	*Storage
-
 	backupFilePath string
-	backupInterval time.Duration
 }
 
 type BackupObject struct {
@@ -87,7 +85,7 @@ func Init(initialFilePath *string) (*Storage, error) {
 	return storage, err
 }
 
-func writeStoreBackup(stor StorageInterface, backupFilePath string) error {
+func writeStoreBackup(stor *Storage, backupFilePath string) error {
 	gaugeMap, unlockGaugeMetrics := stor.getGaugeMetrics()
 	defer unlockGaugeMetrics()
 
@@ -103,48 +101,42 @@ func writeStoreBackup(stor StorageInterface, backupFilePath string) error {
 	return os.WriteFile(backupFilePath, backupBytes, 0644)
 }
 
-type Destructor func()
+func WithBackup(storage *Storage, backupFilePath string) StorageInterface {
+	return &BackupStorageWrapper{
+		backupFilePath: backupFilePath,
+		Storage:        storage,
+	}
+}
 
-func InitWithBackup(backupFilePath string, backupInterval time.Duration, initialFilePath *string) (StorageInterface, Destructor, error) {
-	storage, err := Init(initialFilePath)
-	destructor := func() {}
+func InitBackupTicker(storage *Storage, backupFilePath string, backupInterval time.Duration) func() {
+	ticker := time.NewTicker(backupInterval)
+	doneFlag := make(chan struct{})
 
-	fmt.Println("Storage is connected with backup file", backupFilePath)
+	stopTicker := func() {
+		doneFlag <- struct{}{}
+	}
 
-	if backupInterval != time.Duration(0) {
-		ticker := time.NewTicker(backupInterval)
-
-		destructor = func() {
-			if ticker != nil {
-				ticker.Stop()
-			}
-		}
-
-		go func() {
-			for {
-				<-ticker.C
+	go func() {
+		for {
+			select {
+			case <-doneFlag:
+				fmt.Println("Готово!")
+				return
+			case <-ticker.C:
 				err := writeStoreBackup(storage, backupFilePath)
 
 				if err != nil {
 					fmt.Println("Couldnot create backup", err)
 				}
 			}
-		}()
+		}
+	}()
 
-		return storage, destructor, err
-	}
-
-	currentStorage := &WithBackup{
-		backupFilePath: backupFilePath,
-		backupInterval: backupInterval,
-		Storage:        storage,
-	}
-
-	return currentStorage, destructor, err
+	return stopTicker
 }
 
-func (stor *WithBackup) writeBackup() error {
-	return writeStoreBackup(stor, stor.backupFilePath)
+func (stor *BackupStorageWrapper) writeBackup() error {
+	return writeStoreBackup(stor.Storage, stor.backupFilePath)
 }
 
 func (stor *Storage) getGaugeMetrics() (GaugeMetricsStorage, func()) {
@@ -160,7 +152,7 @@ func (stor *Storage) SetGaugeMetric(metricName string, value float64) {
 	gaugeMap[metricName] = value
 }
 
-func (stor *WithBackup) SetGaugeMetric(metricName string, value float64) {
+func (stor *BackupStorageWrapper) SetGaugeMetric(metricName string, value float64) {
 	stor.Storage.SetGaugeMetric(metricName, value)
 	stor.writeBackup()
 }
@@ -195,7 +187,7 @@ func (stor *Storage) GetCounterMetric(metricName string) (int64, bool) {
 	return value, ok
 }
 
-func (stor *WithBackup) SetCounterMetric(metricName string, value int64) {
+func (stor *BackupStorageWrapper) SetCounterMetric(metricName string, value int64) {
 	stor.Storage.SetCounterMetric(metricName, value)
 	stor.writeBackup()
 }

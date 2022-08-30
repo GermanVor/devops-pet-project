@@ -34,6 +34,7 @@ type Storage struct {
 type BackupStorageWrapper struct {
 	*Storage
 	backupFilePath string
+	fileRWM sync.Mutex
 }
 
 type BackupObject struct {
@@ -143,6 +144,10 @@ func (stor *Storage) SetGaugeMetric(metricName string, value float64) {
 
 func (stor *BackupStorageWrapper) SetGaugeMetric(metricName string, value float64) {
 	stor.Storage.SetGaugeMetric(metricName, value)
+
+	stor.fileRWM.Lock()
+	defer stor.fileRWM.Unlock()
+
 	writeStoreBackup(stor.Storage, stor.backupFilePath)
 }
 
@@ -173,6 +178,10 @@ func (stor *Storage) GetCounterMetric(metricName string) (int64, bool) {
 
 func (stor *BackupStorageWrapper) SetCounterMetric(metricName string, value int64) {
 	stor.Storage.SetCounterMetric(metricName, value)
+
+	stor.fileRWM.Lock()
+	defer stor.fileRWM.Unlock()
+
 	writeStoreBackup(stor.Storage, stor.backupFilePath)
 }
 

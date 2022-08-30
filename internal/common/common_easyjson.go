@@ -17,7 +17,7 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjsonC803d3e7DecodeGithubComGermanVorDevopsPetProjectCommon(in *jlexer.Lexer, out *Metrics) {
+func easyjsonC803d3e7DecodeGithubComGermanVorDevopsPetProjectInternalCommon(in *jlexer.Lexer, out *Metrics) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -70,7 +70,7 @@ func easyjsonC803d3e7DecodeGithubComGermanVorDevopsPetProjectCommon(in *jlexer.L
 		in.Consumed()
 	}
 }
-func easyjsonC803d3e7EncodeGithubComGermanVorDevopsPetProjectCommon(out *jwriter.Writer, in Metrics) {
+func easyjsonC803d3e7EncodeGithubComGermanVorDevopsPetProjectInternalCommon(out *jwriter.Writer, in Metrics) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -100,23 +100,23 @@ func easyjsonC803d3e7EncodeGithubComGermanVorDevopsPetProjectCommon(out *jwriter
 // MarshalJSON supports json.Marshaler interface
 func (v Metrics) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonC803d3e7EncodeGithubComGermanVorDevopsPetProjectCommon(&w, v)
+	easyjsonC803d3e7EncodeGithubComGermanVorDevopsPetProjectInternalCommon(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v Metrics) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonC803d3e7EncodeGithubComGermanVorDevopsPetProjectCommon(w, v)
+	easyjsonC803d3e7EncodeGithubComGermanVorDevopsPetProjectInternalCommon(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *Metrics) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonC803d3e7DecodeGithubComGermanVorDevopsPetProjectCommon(&r, v)
+	easyjsonC803d3e7DecodeGithubComGermanVorDevopsPetProjectInternalCommon(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *Metrics) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonC803d3e7DecodeGithubComGermanVorDevopsPetProjectCommon(l, v)
+	easyjsonC803d3e7DecodeGithubComGermanVorDevopsPetProjectInternalCommon(l, v)
 }

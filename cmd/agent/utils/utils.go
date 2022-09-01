@@ -1,11 +1,14 @@
 package utils
 
 import (
+	"bytes"
 	"math/rand"
 	"net/http"
 	"runtime"
+	"strconv"
 
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
+	"github.com/GermanVor/devops-pet-project/internal/common"
 )
 
 func CollectMetrics() *metrics.RuntimeMetrics {
@@ -48,7 +51,7 @@ func CollectMetrics() *metrics.RuntimeMetrics {
 }
 
 func BuildEndpointURL(endpointURL, metricType, metricName, metricValue string) string {
-	return endpointURL + "update/" + metricType + "/" + metricName + "/" + metricValue
+	return endpointURL + "/update/" + metricType + "/" + metricName + "/" + metricValue
 }
 
 func BuildRequest(endpointURL, metricType, metricName, metricValue string) (*http.Request, error) {
@@ -62,4 +65,42 @@ func BuildRequest(endpointURL, metricType, metricName, metricValue string) (*htt
 	req.Header.Add("Content-Type", "text/plain")
 
 	return req, err
+}
+
+func BuildRequestV2(endpointURL, metricType, metricName, metricValue string) (*http.Request, error) {
+	metric := common.Metrics{
+		ID:    metricName,
+		MType: metricType,
+	}
+
+	if common.GaugeMetricName == metricType {
+		value, err := strconv.ParseFloat(metricValue, 64)
+
+		if err != nil {
+			return nil, err
+		}
+
+		metric.Value = &value
+	} else {
+		delta, err := strconv.ParseInt(metricValue, 10, 64)
+
+		if err != nil {
+			return nil, err
+		}
+
+		metric.Delta = &delta
+	}
+
+	metricBytes, err := metric.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/", bytes.NewBuffer(metricBytes))
+	req.Header.Add("Content-Type", "application/json")
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }

@@ -1,6 +1,8 @@
 package handlers_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -12,27 +14,27 @@ import (
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
 	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
 	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
-	"github.com/GermanVor/devops-pet-project/storage"
+	"github.com/GermanVor/devops-pet-project/internal/common"
+	"github.com/GermanVor/devops-pet-project/internal/storage"
 	"github.com/bmizerany/assert"
 	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/require"
 )
 
 func createTestEnvironment() (*storage.Storage, string, func()) {
-	currentStorage := storage.Init()
+	currentStorage, _ := storage.Init(nil)
+
 	r := chi.NewRouter()
 
 	handlers.InitRouter(r, currentStorage)
 
 	ts := httptest.NewServer(r)
 
-	endpointURL := ts.URL + "/"
-
 	destructor := func() {
 		ts.Close()
 	}
 
-	return currentStorage, endpointURL, destructor
+	return currentStorage, ts.URL, destructor
 }
 
 func TestServerOperations(t *testing.T) {
@@ -48,9 +50,7 @@ func TestServerOperations(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -61,14 +61,11 @@ func TestServerOperations(t *testing.T) {
 		}
 
 		{
-
-			req, err := http.NewRequest(http.MethodGet, endpointURL+"value/gauge/"+gaugeMetricName, nil)
+			req, err := http.NewRequest(http.MethodGet, endpointURL+"/value/gauge/"+gaugeMetricName, nil)
 			require.NoError(t, err)
 
 			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -92,16 +89,11 @@ func TestServerOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-
-		err = resp.Body.Close()
-		require.NoError(t, err)
 
 		storageMetcric, _ := currentStorage.GetCounterMetric(counterMetricName)
 		assert.Equal(t, counterMetricValue, storageMetcric)
@@ -111,13 +103,11 @@ func TestServerOperations(t *testing.T) {
 		_, endpointURL, destructor := createTestEnvironment()
 		defer destructor()
 
-		req, err := http.NewRequest(http.MethodPost, endpointURL+"update/gauge/", nil)
+		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/gauge/", nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -130,13 +120,11 @@ func TestServerOperations(t *testing.T) {
 		_, endpointURL, destructor := createTestEnvironment()
 		defer destructor()
 
-		req, err := http.NewRequest(http.MethodPost, endpointURL+"update/counter/", nil)
+		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/counter/", nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -150,13 +138,11 @@ func TestServerOperations(t *testing.T) {
 		defer destructor()
 
 		metricName := "qwerty3"
-		req, err := http.NewRequest(http.MethodPost, endpointURL+"update/gauge/"+metricName+"/qwe", nil)
+		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/gauge/"+metricName+"/qwe", nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -173,13 +159,11 @@ func TestServerOperations(t *testing.T) {
 		defer destructor()
 
 		metricName := "qwerty4"
-		req, err := http.NewRequest(http.MethodPost, endpointURL+"update/counter/"+metricName+"/qwe", nil)
+		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/counter/"+metricName+"/qwe", nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -203,9 +187,7 @@ func TestServerOperations(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 		}
 
@@ -217,9 +199,7 @@ func TestServerOperations(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer resp.Body.Close()
 		}
 
@@ -227,9 +207,7 @@ func TestServerOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -250,5 +228,91 @@ func TestServerOperations(t *testing.T) {
 
 		storageCounterMetcric, _ := currentStorage.GetCounterMetric(counterMetricName)
 		assert.Equal(t, counterMetricValue, storageCounterMetcric)
+	})
+}
+
+func TestServerOperationsV2(t *testing.T) {
+	t.Run("Update Gauge metric", func(t *testing.T) {
+		currentStorage, endpointURL, destructor := createTestEnvironment()
+		defer destructor()
+
+		value := rand.Float64()
+		metric := common.Metrics{
+			ID:    "qwerty",
+			MType: common.GaugeMetricName,
+			Value: &value,
+		}
+
+		jsonResp, err := metric.MarshalJSON()
+		require.NoError(t, err)
+
+		{
+			resp, err := http.DefaultClient.Post(endpointURL+"/update/", "application/json", bytes.NewReader(jsonResp))
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+			storageMetcric, _ := currentStorage.GetGaugeMetric(metric.ID)
+			assert.Equal(t, value, storageMetcric)
+		}
+
+		{
+			resp, err := http.DefaultClient.Post(endpointURL+"/value/", "application/json", bytes.NewReader(jsonResp))
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+			respMetric := common.Metrics{}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&respMetric))
+
+			assert.Equal(t, metric.Value, respMetric.Value)
+			assert.Equal(t, metric.ID, respMetric.ID)
+			assert.Equal(t, metric.MType, respMetric.MType)
+			assert.Equal(t, metric.Delta, (*int64)(nil))
+		}
+	})
+
+	t.Run("Update Counter metric", func(t *testing.T) {
+		currentStorage, endpointURL, destructor := createTestEnvironment()
+		defer destructor()
+
+		delta := rand.Int63()
+		metric := common.Metrics{
+			ID:    "qwerty",
+			MType: common.CounterMetricName,
+			Delta: &delta,
+		}
+
+		jsonResp, err := metric.MarshalJSON()
+		require.NoError(t, err)
+
+		{
+			resp, err := http.DefaultClient.Post(endpointURL+"/update/", "application/json", bytes.NewReader(jsonResp))
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+			storageMetcric, _ := currentStorage.GetCounterMetric(metric.ID)
+			assert.Equal(t, delta, storageMetcric)
+		}
+
+		{
+			resp, err := http.DefaultClient.Post(endpointURL+"/value/", "application/json", bytes.NewReader(jsonResp))
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+			respMetric := common.Metrics{}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&respMetric))
+
+			assert.Equal(t, metric.Delta, respMetric.Delta)
+			assert.Equal(t, metric.ID, respMetric.ID)
+			assert.Equal(t, metric.MType, respMetric.MType)
+			assert.Equal(t, respMetric.Value, (*float64)(nil))
+		}
 	})
 }

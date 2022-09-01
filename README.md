@@ -1,24 +1,23 @@
-# go-musthave-devops-tpl
-
-Шаблон репозитория для практического трека «Go в DevOps».
-
-# Начало работы
-
-1. Склонируйте репозиторий в любую подходящую директорию на вашем компьютере.
-2. В корне репозитория выполните команду `go mod init <name>` (где `<name>` - адрес вашего репозитория на GitHub без префикса `https://`) для создания модуля.
-
-# Обновление шаблона
-
-Чтобы получать обновления автотестов и других частей шаблона, выполните следующую команду:
+# .env
 
 ```
-git remote add -m main template https://github.com/yandex-praktikum/go-musthave-devops-tpl.git
+ADDRESS="localhost:8080"
+REPORT_INTERVAL=(int64)
+POLL_INTERVAL=(int64)
+STORE_INTERVAL="300s"
+STORE_FILE="/tmp/devops-metrics-db.json"
+RESTORE="true"
 ```
 
-Для обновления кода автотестов выполните команду:
+`ADDRESS` - Common for Agent and Server Adress (Server Address and Agent requests endpoint Address).
 
-```
-git fetch template && git checkout template/main .github
-```
+`REPORT_INTERVAL` - The time in seconds when Agent sent Metrics to the Server.
 
-Затем добавьте полученные изменения в свой репозиторий.
+`POLL_INTERVAL` - The time in seconds when Agent collects Metrics.
+
+`STORE_INTERVAL` - The time in seconds after which the current server readings are reset to disk
+(value 0 — makes the recording synchronous).
+
+`STORE_FILE` - The name of the file in which Server will store Metrics (Empty name turn off storing Metrics).
+
+`RESTORE` - Bool value. `true` - At startup Server will try to load data from `STORE_FILE`. `false` - Server will create new `STORE_FILE` file in startup.

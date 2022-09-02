@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -65,13 +65,13 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 				// 	go func() {
 				// 		req, err := utils.BuildRequest(endpointURL, metricType, metricName, metricValue)
 				// 		if err != nil {
-				// 			fmt.Println(err)
+				// 			log.Println(err)
 				// 			return
 				// 		}
 
 				// 		resp, err := client.Do(req)
 				// 		if err != nil {
-				// 			fmt.Println(err)
+				// 			log.Println(err)
 				// 			return
 				// 		}
 
@@ -83,13 +83,13 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 					go func() {
 						req, err := utils.BuildRequestV2(endpointURL, metricType, metricName, metricValue)
 						if err != nil {
-							fmt.Println(err)
+							log.Println(err)
 							return
 						}
 
 						resp, err := client.Do(req)
 						if err != nil {
-							fmt.Println(err)
+							log.Println(err)
 							return
 						}
 

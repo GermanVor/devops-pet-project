@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -26,7 +25,7 @@ func main() {
 	flag.Parse()
 	common.InitServerEnvConfig(Config)
 
-	fmt.Println("Config is", Config)
+	log.Println("Config is", Config)
 
 	var initialFilePath *string
 
@@ -54,7 +53,7 @@ func main() {
 
 	handlers.InitRouter(r, currentStorage)
 
-	fmt.Println("Server Started: http://" + Config.Address)
+	log.Println("Server Started: http://" + Config.Address)
 
 	log.Fatal(http.ListenAndServe(Config.Address, r))
 }

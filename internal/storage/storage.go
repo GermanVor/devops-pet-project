@@ -2,7 +2,7 @@ package storage
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -34,7 +34,7 @@ type Storage struct {
 type BackupStorageWrapper struct {
 	*Storage
 	backupFilePath string
-	fileRWM sync.Mutex
+	fileRWM        sync.Mutex
 }
 
 type BackupObject struct {
@@ -75,9 +75,9 @@ func Init(initialFilePath *string) (*Storage, error) {
 		err = createStorageFromBackup(storage, *initialFilePath)
 
 		if err == nil {
-			fmt.Println("Storage is successfully restored from backup")
+			log.Println("Storage is successfully restored from backup")
 		} else {
-			fmt.Println("Storage is not restored from backup,", err)
+			log.Println("Storage is not restored from backup,", err)
 		}
 	}
 
@@ -120,13 +120,13 @@ func InitBackupTicker(storage *Storage, backupFilePath string, backupInterval ti
 		for {
 			select {
 			case <-doneFlag:
-				fmt.Println("Готово!")
+				log.Println("Готово!")
 				return
 			case <-ticker.C:
 				err := writeStoreBackup(storage, backupFilePath)
 
 				if err != nil {
-					fmt.Println("Couldnot create backup", err)
+					log.Println("Couldnot create backup", err)
 				}
 			}
 		}

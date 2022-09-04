@@ -76,7 +76,8 @@ type ServerConfig struct {
 	StoreFile     string
 	IsRestore     bool
 
-	Key string
+	Key         string
+	DataBaseDSN string
 }
 
 func InitAgentEnvConfig(config *AgentConfig) *AgentConfig {
@@ -166,6 +167,10 @@ func InitServerEnvConfig(config *ServerConfig) *ServerConfig {
 		config.Key = hashKey
 	}
 
+	if dataBaseDSN, ok := os.LookupEnv("DATABASE_DSN"); ok {
+		config.DataBaseDSN = dataBaseDSN
+	}
+
 	return config
 }
 
@@ -175,6 +180,7 @@ const (
 	rUsage = "Bool value. `true` - At startup Server will try to load data from `STORE_FILE`. `false` - Server will create new `STORE_FILE` file in startup."
 	iUsage = "The time in seconds after which the current server readings are reset to disk \n (value 0 — makes the recording synchronous)."
 	kUsage = "Static key (for educational purposes) for hash generation"
+	dUsage = ""
 )
 
 func InitServerFlagConfig(config *ServerConfig) *ServerConfig {
@@ -182,6 +188,7 @@ func InitServerFlagConfig(config *ServerConfig) *ServerConfig {
 	flag.StringVar(&config.StoreFile, "f", config.StoreFile, fUsage)
 	flag.BoolVar(&config.IsRestore, "r", config.IsRestore, rUsage)
 	flag.StringVar(&config.Key, "k", config.Key, kUsage)
+	flag.StringVar(&config.DataBaseDSN, "d", config.DataBaseDSN, dUsage)
 
 	flag.Func("i", iUsage, func(s string) error {
 		storeInterval, err := time.ParseDuration(s)

@@ -11,6 +11,7 @@ import (
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 func UpdateGaugeMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
@@ -165,7 +166,7 @@ var defaultCompressibleContentTypes = []string{
 	"text/xml",
 }
 
-func InitRouter(r *chi.Mux, currentStorage storage.StorageInterface, key string) *chi.Mux {
+func InitRouter(r *chi.Mux, currentStorage storage.StorageInterface, key string, conn *pgxpool.Pool) *chi.Mux {
 	r.Use(middleware.Compress(5, defaultCompressibleContentTypes...))
 
 	r.Route("/update", func(r chi.Router) {
@@ -219,6 +220,17 @@ func InitRouter(r *chi.Mux, currentStorage storage.StorageInterface, key string)
 
 		w.Header().Add("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(w, "<div><ul>%s</ul></div>", list)
+	})
+
+	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
+		if conn != nil {
+			if conn.Ping(r.Context()) == nil {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+		}
+
+		w.WriteHeader(http.StatusInternalServerError)
 	})
 
 	return r

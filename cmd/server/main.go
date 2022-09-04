@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
@@ -11,6 +13,8 @@ import (
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 var Config = &common.ServerConfig{
@@ -20,12 +24,36 @@ var Config = &common.ServerConfig{
 	IsRestore:     true,
 }
 
-func main() {
+func initConfig() {
 	common.InitServerFlagConfig(Config)
 	flag.Parse()
 	common.InitServerEnvConfig(Config)
 
 	log.Println("Config is", Config)
+}
+
+type Destructor func()
+
+func initDBConnection(dbContext context.Context, connString string) *pgxpool.Pool {
+	conn, err := pgxpool.Connect(dbContext, connString)
+	if err != nil {
+		log.Printf("Unable to connect to database: %v\n", err)
+		os.Exit(1)
+	}
+
+	return conn
+}
+
+func main() {
+	initConfig()
+
+	var conn *pgxpool.Pool
+
+	if Config.DataBaseDSN != "" {
+		dbContext := context.Background()
+		conn = initDBConnection(dbContext, Config.DataBaseDSN)
+		defer conn.Close()
+	}
 
 	var initialFilePath *string
 
@@ -51,7 +79,7 @@ func main() {
 
 	r.Use(middleware.Logger)
 
-	handlers.InitRouter(r, currentStorage, Config.Key)
+	handlers.InitRouter(r, currentStorage, Config.Key, conn)
 
 	log.Println("Server Started: http://" + Config.Address)
 

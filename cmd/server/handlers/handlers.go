@@ -45,12 +45,25 @@ func UpdateCounterMetric(w http.ResponseWriter, r *http.Request, currentStorage 
 	w.WriteHeader(http.StatusOK)
 }
 
-func UpdateMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
+func UpdateMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface, key string) {
 	metric := &common.Metrics{}
 
-	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
+	}
+
+	if key != "" {
+		metricHash, err := common.GetMetricHash(metric, key)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if metricHash != metric.Hash {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
 
 	switch metric.MType {
@@ -100,10 +113,10 @@ func missedMetricNameHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
 
-func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
-	metric := common.Metrics{}
+func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface, key string) {
+	metric := &common.Metrics{}
 
-	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -111,6 +124,10 @@ func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.St
 	printMetric := func() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+
+		if key != "" {
+			metric.Hash, _ = common.GetMetricHash(metric, key)
+		}
 
 		jsonResp, err := metric.MarshalJSON()
 		if err != nil {
@@ -148,7 +165,7 @@ var defaultCompressibleContentTypes = []string{
 	"text/xml",
 }
 
-func InitRouter(r *chi.Mux, currentStorage storage.StorageInterface) *chi.Mux {
+func InitRouter(r *chi.Mux, currentStorage storage.StorageInterface, key string) *chi.Mux {
 	r.Use(middleware.Compress(5, defaultCompressibleContentTypes...))
 
 	r.Route("/update", func(r chi.Router) {
@@ -164,7 +181,7 @@ func InitRouter(r *chi.Mux, currentStorage storage.StorageInterface) *chi.Mux {
 		r.Post("/counter/", missedMetricNameHandlerFunc)
 
 		r.Post("/", func(w http.ResponseWriter, r *http.Request) {
-			UpdateMetric(w, r, currentStorage)
+			UpdateMetric(w, r, currentStorage, key)
 		})
 
 		r.Post("/*", func(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +199,7 @@ func InitRouter(r *chi.Mux, currentStorage storage.StorageInterface) *chi.Mux {
 		})
 
 		r.Post("/", func(w http.ResponseWriter, r *http.Request) {
-			GetMetric(w, r, currentStorage)
+			GetMetric(w, r, currentStorage, key)
 		})
 
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {

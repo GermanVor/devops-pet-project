@@ -19,7 +19,7 @@ var Config = &common.AgentConfig{
 	ReportInterval: 10 * time.Second,
 }
 
-func Start(ctx context.Context, endpointURL string, client http.Client) {
+func Start(ctx context.Context, endpointURL, key string) {
 	pollTicker := time.NewTicker(Config.PollInterval)
 	defer pollTicker.Stop()
 
@@ -69,7 +69,7 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 				// 			return
 				// 		}
 
-				// 		resp, err := client.Do(req)
+				// 		resp, err := http.DefaultClient.Do(req)
 				// 		if err != nil {
 				// 			log.Println(err)
 				// 			return
@@ -81,13 +81,13 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 
 				metrics.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
 					go func() {
-						req, err := utils.BuildRequestV2(endpointURL, metricType, metricName, metricValue)
+						req, err := utils.BuildRequestV2(endpointURL, metricType, metricName, metricValue, key)
 						if err != nil {
 							log.Println(err)
 							return
 						}
 
-						resp, err := client.Do(req)
+						resp, err := http.DefaultClient.Do(req)
 						if err != nil {
 							log.Println(err)
 							return
@@ -112,5 +112,5 @@ func main() {
 
 	ctx := context.Background()
 
-	Start(ctx, "http://"+Config.Address, *http.DefaultClient)
+	Start(ctx, "http://"+Config.Address, Config.Key)
 }

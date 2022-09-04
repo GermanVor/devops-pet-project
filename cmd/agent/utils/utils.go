@@ -67,8 +67,8 @@ func BuildRequest(endpointURL, metricType, metricName, metricValue string) (*htt
 	return req, err
 }
 
-func BuildRequestV2(endpointURL, metricType, metricName, metricValue string) (*http.Request, error) {
-	metric := common.Metrics{
+func BuildRequestV2(endpointURL, metricType, metricName, metricValue, key string) (*http.Request, error) {
+	metric := &common.Metrics{
 		ID:    metricName,
 		MType: metricType,
 	}
@@ -89,6 +89,10 @@ func BuildRequestV2(endpointURL, metricType, metricName, metricValue string) (*h
 		}
 
 		metric.Delta = &delta
+	}
+
+	if key != "" {
+		metric.Hash, _ = common.GetMetricHash(metric, key)
 	}
 
 	metricBytes, err := metric.MarshalJSON()

@@ -51,7 +51,7 @@ func main() {
 
 	r.Use(middleware.Logger)
 
-	handlers.InitRouter(r, currentStorage)
+	handlers.InitRouter(r, currentStorage, Config.Key)
 
 	log.Println("Server Started: http://" + Config.Address)
 

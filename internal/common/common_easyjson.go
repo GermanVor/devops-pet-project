@@ -60,6 +60,8 @@ func easyjsonC803d3e7DecodeGithubComGermanVorDevopsPetProjectInternalCommon(in *
 				}
 				*out.Value = float64(in.Float64())
 			}
+		case "hash":
+			out.Hash = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -93,6 +95,11 @@ func easyjsonC803d3e7EncodeGithubComGermanVorDevopsPetProjectInternalCommon(out 
 		const prefix string = ",\"value\":"
 		out.RawString(prefix)
 		out.Float64(float64(*in.Value))
+	}
+	if in.Hash != "" {
+		const prefix string = ",\"hash\":"
+		out.RawString(prefix)
+		out.String(string(in.Hash))
 	}
 	out.RawByte('}')
 }

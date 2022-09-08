@@ -10,43 +10,45 @@ import (
 	"github.com/GermanVor/devops-pet-project/internal/common"
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
-	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-func UpdateGaugeMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
-	w.Header().Add("Content-Type", "application/json")
+func UpdateMetricV1(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
+	metric := common.Metrics{
+		MType: chi.URLParam(r, "mType"),
+		ID:    chi.URLParam(r, "id"),
+	}
 
-	metricName := chi.URLParam(r, "metricName")
-	metricValue, err := strconv.ParseFloat(chi.URLParam(r, "metricValue"), 64)
-
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+	switch metric.MType {
+	case common.GaugeMetricName:
+		value, err := strconv.ParseFloat(chi.URLParam(r, "metricValue"), 64)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		metric.Value = &value
+	case common.CounterMetricName:
+		delta, err := strconv.ParseInt(chi.URLParam(r, "metricValue"), 10, 64)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		metric.Delta = &delta
+	default:
+		w.WriteHeader(http.StatusNotImplemented)
 		return
 	}
 
-	currentStorage.SetGaugeMetric(metricName, metricValue)
+	err := stor.UpdateMetric(r.Context(), metric)
 
-	w.WriteHeader(http.StatusOK)
-}
-
-func UpdateCounterMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
-	w.Header().Add("Content-Type", "application/json")
-
-	metricName := chi.URLParam(r, "metricName")
-	metricValue, err := strconv.ParseInt(chi.URLParam(r, "metricValue"), 10, 64)
-
-	if err != nil {
+	if err == nil {
+		w.Header().Add("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+	} else {
 		w.WriteHeader(http.StatusBadRequest)
-		return
 	}
-
-	currentStorage.SetCounterMetric(metricName, metricValue)
-
-	w.WriteHeader(http.StatusOK)
 }
 
-func UpdateMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface, key string) {
+func UpdateMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface, key string) {
 	metric := &common.Metrics{}
 
 	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
@@ -68,45 +70,18 @@ func UpdateMetric(w http.ResponseWriter, r *http.Request, currentStorage storage
 	}
 
 	switch metric.MType {
-	case common.GaugeMetricName:
-		currentStorage.SetGaugeMetric(metric.ID, *metric.Value)
-
 	case common.CounterMetricName:
-		currentStorage.SetCounterMetric(metric.ID, *metric.Delta)
-
+	case common.GaugeMetricName:
 	default:
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-}
-
-func GetGaugeMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
-	w.Header().Add("Content-Type", "text/plain")
-
-	metricName := chi.URLParam(r, "metricName")
-	value, ok := currentStorage.GetGaugeMetric(metricName)
-
-	if ok {
+	if err := stor.UpdateMetric(r.Context(), *metric); err == nil {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprint(value)))
 	} else {
-		w.WriteHeader(http.StatusNotFound)
-	}
-}
-
-func GetCounterMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface) {
-	w.Header().Add("Content-Type", "text/plain")
-
-	metricName := chi.URLParam(r, "metricName")
-	value, ok := currentStorage.GetCounterMetric(metricName)
-
-	if ok {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprint(value)))
-	} else {
-		w.WriteHeader(http.StatusNotFound)
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -114,7 +89,41 @@ func missedMetricNameHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
 
-func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.StorageInterface, key string) {
+func GetMetricV1(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
+	mType := chi.URLParam(r, "mType")
+	id := chi.URLParam(r, "id")
+
+	switch mType {
+	case common.GaugeMetricName:
+	case common.CounterMetricName:
+	default:
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	metric, err := stor.GetMetric(r.Context(), mType, id)
+
+	if err == nil {
+		if metric != nil {
+			w.Header().Add("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+
+			switch mType {
+			case common.GaugeMetricName:
+				w.Write([]byte(fmt.Sprint(metric.Value)))
+			case common.CounterMetricName:
+				w.Write([]byte(fmt.Sprint(metric.Delta)))
+			}
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	} else {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func GetMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface, key string) {
+	w.Header().Set("Content-Type", "application/json")
 	metric := &common.Metrics{}
 
 	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
@@ -122,85 +131,69 @@ func GetMetric(w http.ResponseWriter, r *http.Request, currentStorage storage.St
 		return
 	}
 
-	printMetric := func() {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+	switch metric.MType {
+	case common.GaugeMetricName:
+	case common.CounterMetricName:
+	default:
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
 
-		if key != "" {
-			metric.Hash, _ = common.GetMetricHash(metric, key)
-		}
+	storMetric, err := stor.GetMetric(r.Context(), metric.MType, metric.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-		jsonResp, err := metric.MarshalJSON()
-		if err != nil {
-			log.Fatalf("Error happened in JSON marshal. Err: %s", err)
-		}
-		w.Write(jsonResp)
+	if storMetric == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 
 	switch metric.MType {
 	case common.GaugeMetricName:
-		if value, ok := currentStorage.GetGaugeMetric(metric.ID); ok {
-			metric.Value = &value
-
-			printMetric()
-			return
-		}
+		metric.Value = &storMetric.Value
 	case common.CounterMetricName:
-		if value, ok := currentStorage.GetCounterMetric(metric.ID); ok {
-			metric.Delta = &value
-
-			printMetric()
-			return
-		}
+		metric.Delta = &storMetric.Delta
 	}
 
-	w.WriteHeader(http.StatusNotFound)
+	if key != "" {
+		metric.Hash, _ = common.GetMetricHash(metric, key)
+	}
+
+	jsonResp, _ := metric.MarshalJSON()
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResp)
 }
 
-var defaultCompressibleContentTypes = []string{
-	"application/javascript",
-	"application/json",
-	"text/css",
-	"text/html",
-	"text/plain",
-	"text/xml",
-}
-
-func InitRouter(r *chi.Mux, currentStorage storage.StorageInterface, key string, conn *pgxpool.Pool) *chi.Mux {
-	r.Use(middleware.Compress(5, defaultCompressibleContentTypes...))
+func InitRouter(r *chi.Mux, stor storage.StorageInterface, key string) *chi.Mux {
+	if stor == nil {
+		log.Fatalln("Storage do not created")
+	}
 
 	r.Route("/update", func(r chi.Router) {
-		r.Post("/gauge/{metricName}/{metricValue}", func(wr http.ResponseWriter, r *http.Request) {
-			UpdateGaugeMetric(wr, r, currentStorage)
+		r.Post("/{mType}/{id}/{metricValue}", func(w http.ResponseWriter, r *http.Request) {
+			UpdateMetricV1(w, r, stor)
 		})
-
-		r.Post("/counter/{metricName}/{metricValue}", func(wr http.ResponseWriter, r *http.Request) {
-			UpdateCounterMetric(wr, r, currentStorage)
-		})
-
-		r.Post("/gauge/", missedMetricNameHandlerFunc)
-		r.Post("/counter/", missedMetricNameHandlerFunc)
 
 		r.Post("/", func(w http.ResponseWriter, r *http.Request) {
-			UpdateMetric(w, r, currentStorage, key)
+			UpdateMetric(w, r, stor, key)
 		})
 
 		r.Post("/*", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotImplemented)
 		})
+		r.Post("/gauge/", missedMetricNameHandlerFunc)
+		r.Post("/counter/", missedMetricNameHandlerFunc)
 	})
 
 	r.Route("/value", func(r chi.Router) {
-		r.Get("/gauge/{metricName}", func(w http.ResponseWriter, r *http.Request) {
-			GetGaugeMetric(w, r, currentStorage)
-		})
-
-		r.Get("/counter/{metricName}", func(w http.ResponseWriter, r *http.Request) {
-			GetCounterMetric(w, r, currentStorage)
+		r.Get("/{mType}/{id}", func(w http.ResponseWriter, r *http.Request) {
+			GetMetricV1(w, r, stor)
 		})
 
 		r.Post("/", func(w http.ResponseWriter, r *http.Request) {
-			GetMetric(w, r, currentStorage, key)
+			GetMetric(w, r, stor, key)
 		})
 
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -211,26 +204,25 @@ func InitRouter(r *chi.Mux, currentStorage storage.StorageInterface, key string,
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		list := ""
 
-		currentStorage.ForEachGaugeMetric(func(metricName string, value float64) {
-			list += "<li>" + metricName + " - " + fmt.Sprint(value) + "</li>"
-		})
-		currentStorage.ForEachCounterMetric(func(metricName string, value int64) {
-			list += "<li>" + metricName + " - " + fmt.Sprint(value) + "</li>"
-		})
+		err := stor.ForEachMetrics(r.Context(), func(sm *storage.StorageMetric) {
+			list += "<li>" + sm.ID + " - "
 
-		w.Header().Add("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, "<div><ul>%s</ul></div>", list)
-	})
-
-	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-		if conn != nil {
-			if conn.Ping(r.Context()) == nil {
-				w.WriteHeader(http.StatusOK)
-				return
+			switch sm.MType {
+			case common.GaugeMetricName:
+				list += fmt.Sprint(sm.Value)
+			case common.CounterMetricName:
+				list += fmt.Sprint(sm.Delta)
 			}
-		}
 
-		w.WriteHeader(http.StatusInternalServerError)
+			list += "</li>"
+		})
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		} else {
+			w.Header().Add("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprintf(w, "<div><ul>%s</ul></div>", list)
+		}
 	})
 
 	return r

@@ -56,7 +56,7 @@ func GetMetricHash(metrics *Metrics, key string) (string, error) {
 
 		hash = createMetricHash(fmt.Sprintf("%s:counter:%d", metrics.ID, *metrics.Delta), key)
 	} else {
-		return "", errors.New("Unknown metric type: " + metrics.MType)
+		return "", errors.New("unknown metric type: " + metrics.MType)
 	}
 
 	return hash, nil

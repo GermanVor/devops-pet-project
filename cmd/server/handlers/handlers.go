@@ -85,6 +85,23 @@ func UpdateMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageIn
 	}
 }
 
+func UpdateMetrics(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
+	metricsArr := []common.Metrics{}
+
+	if err := json.NewDecoder(r.Body).Decode(&metricsArr); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err := stor.UpdateMetrics(r.Context(), metricsArr)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func missedMetricNameHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
@@ -185,6 +202,10 @@ func InitRouter(r *chi.Mux, stor storage.StorageInterface, key string) *chi.Mux 
 		})
 		r.Post("/gauge/", missedMetricNameHandlerFunc)
 		r.Post("/counter/", missedMetricNameHandlerFunc)
+	})
+
+	r.Post("/updates/", func(w http.ResponseWriter, r *http.Request) {
+		UpdateMetrics(w, r, stor)
 	})
 
 	r.Route("/value", func(r chi.Router) {

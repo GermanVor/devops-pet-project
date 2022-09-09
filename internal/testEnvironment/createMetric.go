@@ -20,7 +20,6 @@ func main() {
 
 	var req *http.Request
 	var err error
-	delta := 0
 
 	for {
 		fmt.Fscan(os.Stdin, &mType)
@@ -30,8 +29,7 @@ func main() {
 			value := rand.Float64()
 			req, err = utils.BuildRequestV2("http://localhost:8080", common.GaugeMetricName, "qwertyG", fmt.Sprintf("%v", value), "")
 		case "c":
-			req, err = utils.BuildRequestV2("http://localhost:8080", common.CounterMetricName, "qwertyC", fmt.Sprintf("%v", delta), "")
-			delta += 5
+			req, err = utils.BuildRequestV2("http://localhost:8080", common.CounterMetricName, "qwertyC", "5", "")
 		default:
 			log.Println("unknown type")
 			continue

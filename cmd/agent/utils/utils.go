@@ -75,7 +75,6 @@ func BuildRequestV2(endpointURL, metricType, metricName, metricValue, key string
 
 	if common.GaugeMetricName == metricType {
 		value, err := strconv.ParseFloat(metricValue, 64)
-
 		if err != nil {
 			return nil, err
 		}
@@ -83,7 +82,6 @@ func BuildRequestV2(endpointURL, metricType, metricName, metricValue, key string
 		metric.Value = &value
 	} else {
 		delta, err := strconv.ParseInt(metricValue, 10, 64)
-
 		if err != nil {
 			return nil, err
 		}
@@ -101,10 +99,10 @@ func BuildRequestV2(endpointURL, metricType, metricName, metricValue, key string
 	}
 
 	req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/", bytes.NewBuffer(metricBytes))
-	req.Header.Add("Content-Type", "application/json")
 	if err != nil {
 		return nil, err
 	}
 
+	req.Header.Add("Content-Type", "application/json")
 	return req, nil
 }

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/GermanVor/devops-pet-project/internal/common"
-	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
@@ -26,12 +25,23 @@ type StorageInterface interface {
 	ForEachMetrics(context.Context, func(*StorageMetric)) error
 	GetMetric(ctx context.Context, mType string, id string) (*StorageMetric, error)
 	UpdateMetric(ctx context.Context, metric common.Metrics) error
+	UpdateMetrics(ctx context.Context, metricList []common.Metrics) error
 }
 
 type StorageV2 struct {
 	StorageInterface
 	dbPool *pgxpool.Pool
 }
+
+const InsertDeltaSQL = "INSERT INTO metrics (id, mType, delta) " +
+	"VALUES ($1, $2, $3) " +
+	"ON CONFLICT (id) DO UPDATE SET delta = metrics.delta + EXCLUDED.delta;"
+const InsertValueSQL = "INSERT INTO metrics (id, mType, value) " +
+	"VALUES ($1, $2, $3) " +
+	"ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;"
+
+const SelectDeltaSQL = "SELECT delta FROM metrics WHERE id=$1"
+const SelectValueSQL = "SELECT value FROM metrics WHERE id=$1"
 
 // go run ./cmd/server/main.go -d=postgres://zzman:@localhost:5432/postgres
 func InitV2(dbContext context.Context, connString string) (*StorageV2, error) {
@@ -46,7 +56,7 @@ func InitV2(dbContext context.Context, connString string) (*StorageV2, error) {
 		"id text UNIQUE, " +
 		"mType text, " +
 		"delta bigint DEFAULT 0, " +
-		"value double precision" +
+		"value double precision DEFAULT 0" +
 		");"
 
 	_, err = conn.Exec(context.TODO(), sql)
@@ -73,25 +83,15 @@ func (stor *StorageV2) ForEachMetrics(ctx context.Context, handler func(*Storage
 		return err
 	}
 
-	value := pgtype.Float8{}
-
 	for rows.Next() {
 		storageMetric := &StorageMetric{}
 
-		err := rows.Scan(&storageMetric.ID, &storageMetric.MType, &storageMetric.Delta, &value)
+		err := rows.Scan(&storageMetric.ID, &storageMetric.MType, &storageMetric.Delta, &storageMetric.Value)
 		if err != nil {
 			return err
 		}
 
-		switch storageMetric.MType {
-		case common.GaugeMetricName:
-			if value.Status == pgtype.Present {
-				value.AssignTo(&storageMetric.Value)
-				handler(storageMetric)
-			}
-		case common.CounterMetricName:
-			handler(storageMetric)
-		}
+		handler(storageMetric)
 	}
 
 	return nil
@@ -105,55 +105,43 @@ func (stor *StorageV2) GetMetric(ctx context.Context, mType string, id string) (
 
 	switch mType {
 	case common.GaugeMetricName:
-		row := stor.dbPool.QueryRow(ctx, "SELECT value FROM metrics WHERE id=$1", id)
-		value := pgtype.Float8{}
-
-		err := row.Scan(&value)
-		if err != nil && err != pgx.ErrNoRows {
-			return nil, err
+		row := stor.dbPool.QueryRow(ctx, SelectValueSQL, id)
+		err := row.Scan(&storageMetric.Value)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				return nil, nil
+			} else {
+				return nil, err
+			}
 		}
 
-		if value.Status == pgtype.Present {
-			value.AssignTo(&storageMetric.Value)
-			return storageMetric, nil
-		}
+		return storageMetric, nil
 	case common.CounterMetricName:
-		row := stor.dbPool.QueryRow(ctx, "SELECT delta FROM metrics WHERE id=$1", id)
-		delta := pgtype.Int8{}
-
-		err := row.Scan(&delta)
-		if err != nil && err != pgx.ErrNoRows {
-			return nil, err
+		row := stor.dbPool.QueryRow(ctx, SelectDeltaSQL, id)
+		err := row.Scan(&storageMetric.Delta)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				return nil, nil
+			} else {
+				return nil, err
+			}
 		}
 
-		if delta.Status == pgtype.Present {
-			delta.AssignTo(&storageMetric.Delta)
-			return storageMetric, nil
-		}
+		return storageMetric, nil
 	default:
 		return nil, errors.New("unknown metric type: " + mType)
 	}
-
-	return nil, nil
 }
 
 func (stor *StorageV2) UpdateMetric(ctx context.Context, metric common.Metrics) error {
 	switch metric.MType {
 	case common.GaugeMetricName:
-		sql := "INSERT INTO metrics (id, mType, value) " +
-			"VALUES ($1, $2, $3) " +
-			"ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;"
-
-		_, err := stor.dbPool.Exec(ctx, sql, metric.ID, metric.MType, *metric.Value)
+		_, err := stor.dbPool.Exec(ctx, InsertValueSQL, metric.ID, metric.MType, *metric.Value)
 		if err != nil {
 			return err
 		}
 	case common.CounterMetricName:
-		sql := "INSERT INTO metrics (id, mType, delta) " +
-			"VALUES ($1, $2, $3) " +
-			"ON CONFLICT (id) DO UPDATE SET delta = metrics.delta + EXCLUDED.delta;"
-
-		_, err := stor.dbPool.Exec(ctx, sql, metric.ID, metric.MType, *metric.Delta)
+		_, err := stor.dbPool.Exec(ctx, InsertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
 		if err != nil {
 			return err
 		}
@@ -162,6 +150,30 @@ func (stor *StorageV2) UpdateMetric(ctx context.Context, metric common.Metrics) 
 	}
 
 	return nil
+}
+
+func (stor *StorageV2) UpdateMetrics(ctx context.Context, metricsList []common.Metrics) error {
+	tx, err := stor.dbPool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, metric := range metricsList {
+		switch metric.MType {
+		case common.GaugeMetricName:
+			_, err = tx.Exec(ctx, InsertValueSQL, metric.ID, metric.MType, *metric.Value)
+		case common.CounterMetricName:
+			_, err = tx.Exec(ctx, InsertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
+		default:
+			return tx.Rollback(ctx)
+		}
+
+		if err != nil {
+			return tx.Rollback(ctx)
+		}
+	}
+
+	return tx.Commit(ctx)
 }
 
 type GaugeMetricsStorage map[string]float64
@@ -235,6 +247,34 @@ func (stor *Storage) UpdateMetric(ctx context.Context, metric common.Metrics) er
 		stor.counterMap[metric.ID] += *metric.Delta
 	default:
 		return errors.New("unknown metric type: " + metric.MType)
+	}
+
+	return nil
+}
+
+func (stor *Storage) UpdateMetrics(ctx context.Context, metricList []common.Metrics) error {
+	stor.storageRWM.Lock()
+	defer stor.storageRWM.Unlock()
+
+	gaugeMap := make(GaugeMetricsStorage)
+	counterMap := make(CounterMetricsStorage)
+
+	for _, metric := range metricList {
+		switch metric.MType {
+		case common.GaugeMetricName:
+			gaugeMap[metric.ID] = *metric.Value
+		case common.CounterMetricName:
+			counterMap[metric.ID] = *metric.Delta
+		default:
+			return errors.New("unknown metrc type: " + metric.MType)
+		}
+	}
+
+	for key, value := range gaugeMap {
+		stor.gaugeMap[key] = value
+	}
+	for key, delta := range counterMap {
+		stor.counterMap[key] = delta
 	}
 
 	return nil

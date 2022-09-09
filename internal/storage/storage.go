@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -33,15 +34,23 @@ type StorageV2 struct {
 	dbPool *pgxpool.Pool
 }
 
-const InsertDeltaSQL = "INSERT INTO metrics (id, mType, delta) " +
-	"VALUES ($1, $2, $3) " +
-	"ON CONFLICT (id) DO UPDATE SET delta = metrics.delta + EXCLUDED.delta;"
-const InsertValueSQL = "INSERT INTO metrics (id, mType, value) " +
-	"VALUES ($1, $2, $3) " +
-	"ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;"
+const (
+	insertDeltaSQL = "INSERT INTO metrics (id, mType, delta) " +
+		"VALUES ($1, $2, $3) " +
+		"ON CONFLICT (id) DO UPDATE SET delta = metrics.delta + EXCLUDED.delta;"
+	insertValueSQL = "INSERT INTO metrics (id, mType, value) " +
+		"VALUES ($1, $2, $3) " +
+		"ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;"
 
-const SelectDeltaSQL = "SELECT delta FROM metrics WHERE id=$1"
-const SelectValueSQL = "SELECT value FROM metrics WHERE id=$1"
+	selectDeltaSQL      = "SELECT delta FROM metrics WHERE id=$1"
+	selectValueSQL      = "SELECT value FROM metrics WHERE id=$1"
+	selectDeltaValueSQL = "SELECT id, mType, delta, value FROM metrics"
+)
+
+var ErrUnknowMetricType = errors.New("unknown metric type")
+func NewUnknownMetricTypeError(str string) error {
+	return fmt.Errorf(`%w: %s`, ErrUnknowMetricType, str)
+}
 
 // go run ./cmd/server/main.go -d=postgres://zzman:@localhost:5432/postgres
 func InitV2(dbContext context.Context, connString string) (*StorageV2, error) {
@@ -78,7 +87,7 @@ func (stor *StorageV2) Close() {
 }
 
 func (stor *StorageV2) ForEachMetrics(ctx context.Context, handler func(*StorageMetric)) error {
-	rows, err := stor.dbPool.Query(context.Background(), "SELECT id, mType, delta, value FROM metrics")
+	rows, err := stor.dbPool.Query(context.Background(), selectDeltaValueSQL)
 	if err != nil {
 		return err
 	}
@@ -105,10 +114,10 @@ func (stor *StorageV2) GetMetric(ctx context.Context, mType string, id string) (
 
 	switch mType {
 	case common.GaugeMetricName:
-		row := stor.dbPool.QueryRow(ctx, SelectValueSQL, id)
+		row := stor.dbPool.QueryRow(ctx, selectValueSQL, id)
 		err := row.Scan(&storageMetric.Value)
 		if err != nil {
-			if err == pgx.ErrNoRows {
+			if errors.Is(err, pgx.ErrNoRows) {
 				return nil, nil
 			} else {
 				return nil, err
@@ -117,10 +126,10 @@ func (stor *StorageV2) GetMetric(ctx context.Context, mType string, id string) (
 
 		return storageMetric, nil
 	case common.CounterMetricName:
-		row := stor.dbPool.QueryRow(ctx, SelectDeltaSQL, id)
+		row := stor.dbPool.QueryRow(ctx, selectDeltaSQL, id)
 		err := row.Scan(&storageMetric.Delta)
 		if err != nil {
-			if err == pgx.ErrNoRows {
+			if errors.Is(err, pgx.ErrNoRows) {
 				return nil, nil
 			} else {
 				return nil, err
@@ -129,24 +138,24 @@ func (stor *StorageV2) GetMetric(ctx context.Context, mType string, id string) (
 
 		return storageMetric, nil
 	default:
-		return nil, errors.New("unknown metric type: " + mType)
+		return nil, NewUnknownMetricTypeError(mType)
 	}
 }
 
 func (stor *StorageV2) UpdateMetric(ctx context.Context, metric common.Metrics) error {
 	switch metric.MType {
 	case common.GaugeMetricName:
-		_, err := stor.dbPool.Exec(ctx, InsertValueSQL, metric.ID, metric.MType, *metric.Value)
+		_, err := stor.dbPool.Exec(ctx, insertValueSQL, metric.ID, metric.MType, *metric.Value)
 		if err != nil {
 			return err
 		}
 	case common.CounterMetricName:
-		_, err := stor.dbPool.Exec(ctx, InsertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
+		_, err := stor.dbPool.Exec(ctx, insertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
 		if err != nil {
 			return err
 		}
 	default:
-		return errors.New("unknown metric type: " + metric.MType)
+		return NewUnknownMetricTypeError(metric.MType)
 	}
 
 	return nil
@@ -161,9 +170,9 @@ func (stor *StorageV2) UpdateMetrics(ctx context.Context, metricsList []common.M
 	for _, metric := range metricsList {
 		switch metric.MType {
 		case common.GaugeMetricName:
-			_, err = tx.Exec(ctx, InsertValueSQL, metric.ID, metric.MType, *metric.Value)
+			_, err = tx.Exec(ctx, insertValueSQL, metric.ID, metric.MType, *metric.Value)
 		case common.CounterMetricName:
-			_, err = tx.Exec(ctx, InsertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
+			_, err = tx.Exec(ctx, insertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
 		default:
 			return tx.Rollback(ctx)
 		}
@@ -230,7 +239,7 @@ func (stor *Storage) GetMetric(ctx context.Context, mType string, id string) (*S
 			return storageMetric, nil
 		}
 	default:
-		return nil, errors.New("unknown metric type: " + mType)
+		return nil, NewUnknownMetricTypeError(mType)
 	}
 
 	return nil, nil
@@ -246,7 +255,7 @@ func (stor *Storage) UpdateMetric(ctx context.Context, metric common.Metrics) er
 	case common.CounterMetricName:
 		stor.counterMap[metric.ID] += *metric.Delta
 	default:
-		return errors.New("unknown metric type: " + metric.MType)
+		return NewUnknownMetricTypeError(metric.MType)
 	}
 
 	return nil
@@ -266,7 +275,7 @@ func (stor *Storage) UpdateMetrics(ctx context.Context, metricList []common.Metr
 		case common.CounterMetricName:
 			counterMap[metric.ID] = *metric.Delta
 		default:
-			return errors.New("unknown metrc type: " + metric.MType)
+			return NewUnknownMetricTypeError(metric.MType)
 		}
 	}
 
@@ -370,7 +379,6 @@ func WithBackup(stor *Storage, backupFilePath string) StorageInterface {
 }
 
 type Empty struct{}
-
 func InitBackupTicker(stor *Storage, backupFilePath string, backupInterval time.Duration) func() {
 	ticker := time.NewTicker(backupInterval)
 	doneFlag := make(chan Empty)

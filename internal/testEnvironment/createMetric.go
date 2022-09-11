@@ -11,10 +11,6 @@ import (
 	"github.com/GermanVor/devops-pet-project/internal/common"
 )
 
-func Create() {
-	fmt.Println("qwe")
-}
-
 func main() {
 	mType := ""
 

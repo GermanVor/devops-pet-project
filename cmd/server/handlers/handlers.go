@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/GermanVor/devops-pet-project/internal/common"
 	"github.com/GermanVor/devops-pet-project/internal/storage"
@@ -223,26 +224,26 @@ func InitRouter(r *chi.Mux, stor storage.StorageInterface, key string) *chi.Mux 
 	})
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		list := ""
+		list := make([]string, 0)
 
 		err := stor.ForEachMetrics(r.Context(), func(sm *storage.StorageMetric) {
-			list += "<li>" + sm.ID + " - "
+			item := ""
 
 			switch sm.MType {
 			case common.GaugeMetricName:
-				list += fmt.Sprint(sm.Value)
+				item = fmt.Sprint(sm.Value)
 			case common.CounterMetricName:
-				list += fmt.Sprint(sm.Delta)
+				item = fmt.Sprint(sm.Delta)
 			}
 
-			list += "</li>"
+			list = append(list, fmt.Sprintf("<li>%s - %s</li>", sm.ID, item))
 		})
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		} else {
 			w.Header().Add("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprintf(w, "<div><ul>%s</ul></div>", list)
+			fmt.Fprintf(w, "<div><ul>%s</ul></div>", strings.Join(list, ""))
 		}
 	})
 

@@ -1,40 +1,298 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/GermanVor/devops-pet-project/internal/common"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
+
+type StorageMetric struct {
+	ID    string
+	MType string
+	Delta int64
+	Value float64
+}
+
+type StorageInterface interface {
+	ForEachMetrics(context.Context, func(*StorageMetric)) error
+	GetMetric(ctx context.Context, mType string, id string) (*StorageMetric, error)
+	UpdateMetric(ctx context.Context, metric common.Metrics) error
+	UpdateMetrics(ctx context.Context, metricList []common.Metrics) error
+}
+
+type StorageV2 struct {
+	StorageInterface
+	dbPool *pgxpool.Pool
+}
+
+const (
+	insertDeltaSQL = "INSERT INTO metrics (id, mType, delta) " +
+		"VALUES ($1, $2, $3) " +
+		"ON CONFLICT (id) DO UPDATE SET delta = metrics.delta + EXCLUDED.delta;"
+	insertValueSQL = "INSERT INTO metrics (id, mType, value) " +
+		"VALUES ($1, $2, $3) " +
+		"ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;"
+
+	selectDeltaSQL      = "SELECT delta FROM metrics WHERE id=$1"
+	selectValueSQL      = "SELECT value FROM metrics WHERE id=$1"
+	selectDeltaValueSQL = "SELECT id, mType, delta, value FROM metrics"
+)
+
+var ErrUnknowMetricType = errors.New("unknown metric type")
+func NewUnknownMetricTypeError(str string) error {
+	return fmt.Errorf(`%w: %s`, ErrUnknowMetricType, str)
+}
+
+// go run ./cmd/server/main.go -d=postgres://zzman:@localhost:5432/postgres
+func InitV2(dbContext context.Context, connString string) (*StorageV2, error) {
+	conn, err := pgxpool.Connect(dbContext, connString)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("Connected to DB %s successfully\n", connString)
+
+	sql := "CREATE TABLE IF NOT EXISTS metrics (" +
+		"id text UNIQUE, " +
+		"mType text, " +
+		"delta bigint DEFAULT 0, " +
+		"value double precision DEFAULT 0" +
+		");"
+
+	_, err = conn.Exec(context.TODO(), sql)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Println("Created metrics Table successfully")
+
+	return &StorageV2{dbPool: conn}, nil
+}
+
+func (stor *StorageV2) GetConn() *pgxpool.Pool {
+	return stor.dbPool
+}
+
+func (stor *StorageV2) Close() {
+	stor.dbPool.Close()
+}
+
+func (stor *StorageV2) ForEachMetrics(ctx context.Context, handler func(*StorageMetric)) error {
+	rows, err := stor.dbPool.Query(context.Background(), selectDeltaValueSQL)
+	if err != nil {
+		return err
+	}
+
+	for rows.Next() {
+		storageMetric := &StorageMetric{}
+
+		err := rows.Scan(&storageMetric.ID, &storageMetric.MType, &storageMetric.Delta, &storageMetric.Value)
+		if err != nil {
+			return err
+		}
+
+		handler(storageMetric)
+	}
+
+	return nil
+}
+
+func (stor *StorageV2) GetMetric(ctx context.Context, mType string, id string) (*StorageMetric, error) {
+	storageMetric := &StorageMetric{
+		MType: mType,
+		ID:    id,
+	}
+
+	switch mType {
+	case common.GaugeMetricName:
+		row := stor.dbPool.QueryRow(ctx, selectValueSQL, id)
+		err := row.Scan(&storageMetric.Value)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, nil
+			} else {
+				return nil, err
+			}
+		}
+
+		return storageMetric, nil
+	case common.CounterMetricName:
+		row := stor.dbPool.QueryRow(ctx, selectDeltaSQL, id)
+		err := row.Scan(&storageMetric.Delta)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, nil
+			} else {
+				return nil, err
+			}
+		}
+
+		return storageMetric, nil
+	default:
+		return nil, NewUnknownMetricTypeError(mType)
+	}
+}
+
+func (stor *StorageV2) UpdateMetric(ctx context.Context, metric common.Metrics) error {
+	switch metric.MType {
+	case common.GaugeMetricName:
+		_, err := stor.dbPool.Exec(ctx, insertValueSQL, metric.ID, metric.MType, *metric.Value)
+		if err != nil {
+			return err
+		}
+	case common.CounterMetricName:
+		_, err := stor.dbPool.Exec(ctx, insertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
+		if err != nil {
+			return err
+		}
+	default:
+		return NewUnknownMetricTypeError(metric.MType)
+	}
+
+	return nil
+}
+
+func (stor *StorageV2) UpdateMetrics(ctx context.Context, metricsList []common.Metrics) error {
+	tx, err := stor.dbPool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, metric := range metricsList {
+		switch metric.MType {
+		case common.GaugeMetricName:
+			_, err = tx.Exec(ctx, insertValueSQL, metric.ID, metric.MType, *metric.Value)
+		case common.CounterMetricName:
+			_, err = tx.Exec(ctx, insertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
+		default:
+			return tx.Rollback(ctx)
+		}
+
+		if err != nil {
+			return tx.Rollback(ctx)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
 
 type GaugeMetricsStorage map[string]float64
 type CounterMetricsStorage map[string]int64
 
-type StorageInterface interface {
-	GetGaugeMetric(string) (float64, bool)
-	SetGaugeMetric(string, float64)
-	ForEachGaugeMetric(func(string, float64))
-
-	GetCounterMetric(string) (int64, bool)
-	SetCounterMetric(string, int64)
-	ForEachCounterMetric(func(string, int64))
-}
-
 type Storage struct {
 	StorageInterface
 
-	gaugeMap    GaugeMetricsStorage
-	gaugeMapRWM sync.RWMutex
+	gaugeMap   GaugeMetricsStorage
+	counterMap CounterMetricsStorage
+	storageRWM sync.RWMutex
+}
 
-	counterMap    CounterMetricsStorage
-	counterMapRWM sync.RWMutex
+func (stor *Storage) ForEachMetrics(ctx context.Context, handler func(*StorageMetric)) error {
+	stor.storageRWM.RLock()
+	defer stor.storageRWM.RUnlock()
+
+	for id, value := range stor.gaugeMap {
+		handler(&StorageMetric{
+			ID:    id,
+			MType: common.GaugeMetricName,
+			Value: value,
+		})
+	}
+	for id, delta := range stor.counterMap {
+		handler(&StorageMetric{
+			ID:    id,
+			MType: common.CounterMetricName,
+			Delta: delta,
+		})
+	}
+
+	return nil
+}
+
+func (stor *Storage) GetMetric(ctx context.Context, mType string, id string) (*StorageMetric, error) {
+	stor.storageRWM.RLock()
+	defer stor.storageRWM.RUnlock()
+
+	storageMetric := &StorageMetric{
+		MType: mType,
+		ID:    id,
+	}
+
+	switch mType {
+	case common.GaugeMetricName:
+		if value, ok := stor.gaugeMap[id]; ok {
+			storageMetric.Value = value
+			return storageMetric, nil
+		}
+	case common.CounterMetricName:
+		if delta, ok := stor.counterMap[id]; ok {
+			storageMetric.Delta = delta
+			return storageMetric, nil
+		}
+	default:
+		return nil, NewUnknownMetricTypeError(mType)
+	}
+
+	return nil, nil
+}
+
+func (stor *Storage) UpdateMetric(ctx context.Context, metric common.Metrics) error {
+	stor.storageRWM.Lock()
+	defer stor.storageRWM.Unlock()
+
+	switch metric.MType {
+	case common.GaugeMetricName:
+		stor.gaugeMap[metric.ID] = *metric.Value
+	case common.CounterMetricName:
+		stor.counterMap[metric.ID] += *metric.Delta
+	default:
+		return NewUnknownMetricTypeError(metric.MType)
+	}
+
+	return nil
+}
+
+func (stor *Storage) UpdateMetrics(ctx context.Context, metricList []common.Metrics) error {
+	stor.storageRWM.Lock()
+	defer stor.storageRWM.Unlock()
+
+	gaugeMap := make(GaugeMetricsStorage)
+	counterMap := make(CounterMetricsStorage)
+
+	for _, metric := range metricList {
+		switch metric.MType {
+		case common.GaugeMetricName:
+			gaugeMap[metric.ID] = *metric.Value
+		case common.CounterMetricName:
+			counterMap[metric.ID] = *metric.Delta
+		default:
+			return NewUnknownMetricTypeError(metric.MType)
+		}
+	}
+
+	for key, value := range gaugeMap {
+		stor.gaugeMap[key] = value
+	}
+	for key, delta := range counterMap {
+		stor.counterMap[key] = delta
+	}
+
+	return nil
 }
 
 type BackupStorageWrapper struct {
 	*Storage
 	backupFilePath string
-	fileRWM sync.Mutex
+	fileRWM        sync.Mutex
 }
 
 type BackupObject struct {
@@ -42,7 +300,36 @@ type BackupObject struct {
 	CounterMetrics CounterMetricsStorage
 }
 
-func createStorageFromBackup(storage *Storage, initialFilePath string) error {
+func writeStoreBackup(stor *Storage, backupFilePath string) error {
+	stor.storageRWM.RLock()
+
+	backup := BackupObject{
+		GaugeMetrics:   stor.gaugeMap,
+		CounterMetrics: stor.counterMap,
+	}
+
+	backupBytes, _ := json.Marshal(&backup)
+
+	stor.storageRWM.RUnlock()
+
+	return os.WriteFile(backupFilePath, backupBytes, 0644)
+}
+
+func (stor *BackupStorageWrapper) UpdateMetric(ctx context.Context, metric common.Metrics) error {
+	err := stor.Storage.UpdateMetric(ctx, metric)
+	if err != nil {
+		return err
+	}
+
+	stor.fileRWM.Lock()
+	defer stor.fileRWM.Unlock()
+
+	writeStoreBackup(stor.Storage, stor.backupFilePath)
+
+	return nil
+}
+
+func createStorageFromBackup(stor *Storage, initialFilePath string) error {
 	file, err := os.OpenFile(initialFilePath, os.O_RDONLY, 0777)
 	if err != nil {
 		return err
@@ -56,15 +343,15 @@ func createStorageFromBackup(storage *Storage, initialFilePath string) error {
 	err = json.NewDecoder(file).Decode(backupObject)
 
 	if err == nil {
-		storage.counterMap = backupObject.CounterMetrics
-		storage.gaugeMap = backupObject.GaugeMetrics
+		stor.counterMap = backupObject.CounterMetrics
+		stor.gaugeMap = backupObject.GaugeMetrics
 	}
 
 	return err
 }
 
 func Init(initialFilePath *string) (*Storage, error) {
-	storage := &Storage{
+	stor := &Storage{
 		gaugeMap:   make(GaugeMetricsStorage),
 		counterMap: make(CounterMetricsStorage),
 	}
@@ -72,131 +359,48 @@ func Init(initialFilePath *string) (*Storage, error) {
 	var err error
 
 	if initialFilePath != nil {
-		err = createStorageFromBackup(storage, *initialFilePath)
+		err = createStorageFromBackup(stor, *initialFilePath)
 
 		if err == nil {
-			fmt.Println("Storage is successfully restored from backup")
+			log.Println("Storage is successfully restored from backup")
 		} else {
-			fmt.Println("Storage is not restored from backup,", err)
+			log.Println("Storage is not restored from backup,", err)
 		}
 	}
 
-	return storage, err
+	return stor, err
 }
 
-func writeStoreBackup(stor *Storage, backupFilePath string) error {
-	stor.gaugeMapRWM.RLock()
-	stor.counterMapRWM.RLock()
-
-	backup := BackupObject{
-		GaugeMetrics:   stor.gaugeMap,
-		CounterMetrics: stor.counterMap,
-	}
-
-	backupBytes, _ := json.Marshal(&backup)
-
-	stor.gaugeMapRWM.RUnlock()
-	stor.counterMapRWM.RUnlock()
-
-	return os.WriteFile(backupFilePath, backupBytes, 0644)
-}
-
-func WithBackup(storage *Storage, backupFilePath string) StorageInterface {
+func WithBackup(stor *Storage, backupFilePath string) StorageInterface {
 	return &BackupStorageWrapper{
 		backupFilePath: backupFilePath,
-		Storage:        storage,
+		Storage:        stor,
 	}
 }
 
-func InitBackupTicker(storage *Storage, backupFilePath string, backupInterval time.Duration) func() {
+type Empty struct{}
+func InitBackupTicker(stor *Storage, backupFilePath string, backupInterval time.Duration) func() {
 	ticker := time.NewTicker(backupInterval)
-	doneFlag := make(chan struct{})
+	doneFlag := make(chan Empty)
 
 	stopTicker := func() {
-		doneFlag <- struct{}{}
+		doneFlag <- Empty{}
 	}
 
 	go func() {
 		for {
 			select {
 			case <-doneFlag:
-				fmt.Println("Готово!")
 				return
 			case <-ticker.C:
-				err := writeStoreBackup(storage, backupFilePath)
+				err := writeStoreBackup(stor, backupFilePath)
 
 				if err != nil {
-					fmt.Println("Couldnot create backup", err)
+					log.Println("Could not create backup", err)
 				}
 			}
 		}
 	}()
 
 	return stopTicker
-}
-
-func (stor *Storage) SetGaugeMetric(metricName string, value float64) {
-	stor.gaugeMapRWM.Lock()
-	defer stor.gaugeMapRWM.Unlock()
-
-	stor.gaugeMap[metricName] = value
-}
-
-func (stor *BackupStorageWrapper) SetGaugeMetric(metricName string, value float64) {
-	stor.Storage.SetGaugeMetric(metricName, value)
-
-	stor.fileRWM.Lock()
-	defer stor.fileRWM.Unlock()
-
-	writeStoreBackup(stor.Storage, stor.backupFilePath)
-}
-
-func (stor *Storage) GetGaugeMetric(metricName string) (float64, bool) {
-	stor.gaugeMapRWM.RLock()
-	defer stor.gaugeMapRWM.RUnlock()
-
-	value, ok := stor.gaugeMap[metricName]
-	return value, ok
-}
-
-func (stor *Storage) ForEachGaugeMetric(handler func(metricName string, value float64)) {
-	stor.gaugeMapRWM.RLock()
-	defer stor.gaugeMapRWM.RUnlock()
-
-	for a, b := range stor.gaugeMap {
-		handler(a, b)
-	}
-}
-
-func (stor *Storage) GetCounterMetric(metricName string) (int64, bool) {
-	stor.counterMapRWM.RLock()
-	defer stor.counterMapRWM.RUnlock()
-
-	value, ok := stor.counterMap[metricName]
-	return value, ok
-}
-
-func (stor *BackupStorageWrapper) SetCounterMetric(metricName string, value int64) {
-	stor.Storage.SetCounterMetric(metricName, value)
-
-	stor.fileRWM.Lock()
-	defer stor.fileRWM.Unlock()
-
-	writeStoreBackup(stor.Storage, stor.backupFilePath)
-}
-
-func (stor *Storage) SetCounterMetric(metricName string, count int64) {
-	stor.counterMapRWM.Lock()
-	defer stor.counterMapRWM.Unlock()
-
-	stor.counterMap[metricName] += count
-}
-
-func (stor *Storage) ForEachCounterMetric(handler func(metricName string, value int64)) {
-	stor.counterMapRWM.RLock()
-	defer stor.counterMapRWM.RUnlock()
-
-	for a, b := range stor.counterMap {
-		handler(a, b)
-	}
 }

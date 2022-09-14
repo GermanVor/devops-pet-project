@@ -67,15 +67,14 @@ func BuildRequest(endpointURL, metricType, metricName, metricValue string) (*htt
 	return req, err
 }
 
-func BuildRequestV2(endpointURL, metricType, metricName, metricValue string) (*http.Request, error) {
-	metric := common.Metrics{
+func BuildRequestV2(endpointURL, metricType, metricName, metricValue, key string) (*http.Request, error) {
+	metric := &common.Metrics{
 		ID:    metricName,
 		MType: metricType,
 	}
 
 	if common.GaugeMetricName == metricType {
 		value, err := strconv.ParseFloat(metricValue, 64)
-
 		if err != nil {
 			return nil, err
 		}
@@ -83,12 +82,15 @@ func BuildRequestV2(endpointURL, metricType, metricName, metricValue string) (*h
 		metric.Value = &value
 	} else {
 		delta, err := strconv.ParseInt(metricValue, 10, 64)
-
 		if err != nil {
 			return nil, err
 		}
 
 		metric.Delta = &delta
+	}
+
+	if key != "" {
+		metric.Hash, _ = common.GetMetricHash(metric, key)
 	}
 
 	metricBytes, err := metric.MarshalJSON()
@@ -97,10 +99,10 @@ func BuildRequestV2(endpointURL, metricType, metricName, metricValue string) (*h
 	}
 
 	req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/", bytes.NewBuffer(metricBytes))
-	req.Header.Add("Content-Type", "application/json")
 	if err != nil {
 		return nil, err
 	}
 
+	req.Header.Add("Content-Type", "application/json")
 	return req, nil
 }

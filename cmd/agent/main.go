@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
-	"fmt"
+	"log"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -19,7 +22,102 @@ var Config = &common.AgentConfig{
 	ReportInterval: 10 * time.Second,
 }
 
-func Start(ctx context.Context, endpointURL string, client http.Client) {
+func SendMetricsV1(metricsObj *metrics.RuntimeMetrics, endpointURL string) {
+	metrics.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
+		go func() {
+			req, err := utils.BuildRequest(endpointURL, metricType, metricName, metricValue)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			resp.Body.Close()
+		}()
+	})
+}
+
+func SendMetricsV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string) {
+	metrics.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
+		go func() {
+			req, err := utils.BuildRequestV2(endpointURL, metricType, metricName, metricValue, key)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			resp.Body.Close()
+		}()
+	})
+}
+
+func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string) {
+	metricsArr := []common.Metrics{}
+
+	metrics.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
+		metric := common.Metrics{
+			ID:    metricName,
+			MType: metricType,
+		}
+
+		switch metricType {
+		case common.GaugeMetricName:
+			value, err := strconv.ParseFloat(metricValue, 64)
+			if err != nil {
+				return
+			}
+
+			metric.Value = &value
+		case common.CounterMetricName:
+			delta, err := strconv.ParseInt(metricValue, 10, 64)
+			if err != nil {
+				return
+			}
+
+			metric.Delta = &delta
+		default:
+			return
+		}
+
+		if key != "" {
+			metric.Hash, _ = common.GetMetricHash(&metric, key)
+		}
+
+		metricsArr = append(metricsArr, metric)
+	})
+
+	metricsBytes, err := json.Marshal(&metricsArr)
+	if err != nil {
+		return
+	}
+
+	req, err := http.NewRequest(http.MethodPost, endpointURL+"/updates/", bytes.NewBuffer(metricsBytes))
+	if err != nil {
+		return
+	}
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	resp.Body.Close()
+}
+
+func Start(ctx context.Context, endpointURL, key string) {
 	pollTicker := time.NewTicker(Config.PollInterval)
 	defer pollTicker.Stop()
 
@@ -61,41 +159,10 @@ func Start(ctx context.Context, endpointURL string, client http.Client) {
 
 				mux.Unlock()
 
-				// metrics.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
-				// 	go func() {
-				// 		req, err := utils.BuildRequest(endpointURL, metricType, metricName, metricValue)
-				// 		if err != nil {
-				// 			fmt.Println(err)
-				// 			return
-				// 		}
+				// SendMetricsV1(&metricsCopy, endpointURL)
+				SendMetricsV2(&metricsCopy, endpointURL, key)
+				SendMetricsButchV2(&metricsCopy, endpointURL, key)
 
-				// 		resp, err := client.Do(req)
-				// 		if err != nil {
-				// 			fmt.Println(err)
-				// 			return
-				// 		}
-
-				// 		resp.Body.Close()
-				// 	}()
-				// })
-
-				metrics.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
-					go func() {
-						req, err := utils.BuildRequestV2(endpointURL, metricType, metricName, metricValue)
-						if err != nil {
-							fmt.Println(err)
-							return
-						}
-
-						resp, err := client.Do(req)
-						if err != nil {
-							fmt.Println(err)
-							return
-						}
-
-						resp.Body.Close()
-					}()
-				})
 			case <-ctx.Done():
 				return
 			}
@@ -112,5 +179,5 @@ func main() {
 
 	ctx := context.Background()
 
-	Start(ctx, "http://"+Config.Address, *http.DefaultClient)
+	Start(ctx, "http://"+Config.Address, Config.Key)
 }

@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,12 +22,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestEnvironment() (*storage.Storage, string, func()) {
+func createTestEnvironment(key string) (*storage.Storage, string, func()) {
 	currentStorage, _ := storage.Init(nil)
 
 	r := chi.NewRouter()
 
-	handlers.InitRouter(r, currentStorage)
+	handlers.InitRouter(r, currentStorage, key)
 
 	ts := httptest.NewServer(r)
 
@@ -42,7 +43,7 @@ func TestServerOperations(t *testing.T) {
 		gaugeMetricName := "qwerty"
 		gaugeMetricValue := rand.Float64()
 
-		currentStorage, endpointURL, destructor := createTestEnvironment()
+		currentStorage, endpointURL, destructor := createTestEnvironment("")
 		defer destructor()
 
 		{
@@ -56,8 +57,9 @@ func TestServerOperations(t *testing.T) {
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 			assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
-			storageMetcric, _ := currentStorage.GetGaugeMetric(gaugeMetricName)
-			assert.Equal(t, gaugeMetricValue, storageMetcric)
+			storageMetcric, err := currentStorage.GetMetric(context.TODO(), common.GaugeMetricName, gaugeMetricName)
+			require.NoError(t, err)
+			assert.Equal(t, gaugeMetricValue, storageMetcric.Value)
 		}
 
 		{
@@ -80,12 +82,12 @@ func TestServerOperations(t *testing.T) {
 
 	t.Run("Update Counter metric", func(t *testing.T) {
 		counterMetricName := "qwerty2"
-		counterMetricValue := rand.Int63()
+		delta := rand.Int63()
 
-		currentStorage, endpointURL, destructor := createTestEnvironment()
+		currentStorage, endpointURL, destructor := createTestEnvironment("")
 		defer destructor()
 
-		req, err := utils.BuildRequest(endpointURL, metrics.CounterTypeName, counterMetricName, fmt.Sprint(counterMetricValue))
+		req, err := utils.BuildRequest(endpointURL, metrics.CounterTypeName, counterMetricName, fmt.Sprint(delta))
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -95,12 +97,13 @@ func TestServerOperations(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
-		storageMetcric, _ := currentStorage.GetCounterMetric(counterMetricName)
-		assert.Equal(t, counterMetricValue, storageMetcric)
+		storageMetcric, err := currentStorage.GetMetric(context.TODO(), common.CounterMetricName, counterMetricName)
+		require.NoError(t, err)
+		assert.Equal(t, delta, storageMetcric.Delta)
 	})
 
 	t.Run("Gauge bad metricName", func(t *testing.T) {
-		_, endpointURL, destructor := createTestEnvironment()
+		_, endpointURL, destructor := createTestEnvironment("")
 		defer destructor()
 
 		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/gauge/", nil)
@@ -117,7 +120,7 @@ func TestServerOperations(t *testing.T) {
 	})
 
 	t.Run("Counter bad metricName", func(t *testing.T) {
-		_, endpointURL, destructor := createTestEnvironment()
+		_, endpointURL, destructor := createTestEnvironment("")
 		defer destructor()
 
 		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/counter/", nil)
@@ -134,7 +137,7 @@ func TestServerOperations(t *testing.T) {
 	})
 
 	t.Run("Gauge bad value", func(t *testing.T) {
-		currentStorage, endpointURL, destructor := createTestEnvironment()
+		currentStorage, endpointURL, destructor := createTestEnvironment("")
 		defer destructor()
 
 		metricName := "qwerty3"
@@ -150,12 +153,13 @@ func TestServerOperations(t *testing.T) {
 		err = resp.Body.Close()
 		require.NoError(t, err)
 
-		storageMetcric, _ := currentStorage.GetGaugeMetric(metricName)
-		assert.Equal(t, float64(0), storageMetcric)
+		storageMetcric, err := currentStorage.GetMetric(context.TODO(), common.GaugeMetricName, metricName)
+		assert.Equal(t, nil, err)
+		assert.Equal(t, (*storage.StorageMetric)(nil), storageMetcric)
 	})
 
 	t.Run("Counter bad value", func(t *testing.T) {
-		currentStorage, endpointURL, destructor := createTestEnvironment()
+		currentStorage, endpointURL, destructor := createTestEnvironment("")
 		defer destructor()
 
 		metricName := "qwerty4"
@@ -171,12 +175,13 @@ func TestServerOperations(t *testing.T) {
 		err = resp.Body.Close()
 		require.NoError(t, err)
 
-		storageMetcric, _ := currentStorage.GetCounterMetric(metricName)
-		assert.Equal(t, int64(0), storageMetcric)
+		storageMetcric, err := currentStorage.GetMetric(context.TODO(), common.CounterMetricName, metricName)
+		assert.Equal(t, nil, err)
+		assert.Equal(t, (*storage.StorageMetric)(nil), storageMetcric)
 	})
 
 	t.Run("Get all metrics List", func(t *testing.T) {
-		currentStorage, endpointURL, destructor := createTestEnvironment()
+		currentStorage, endpointURL, destructor := createTestEnvironment("")
 		defer destructor()
 
 		gaugeMetricName := "qwerty"
@@ -223,24 +228,28 @@ func TestServerOperations(t *testing.T) {
 
 		assert.Equal(t, 4, strings.Count(stringBody, "li"))
 
-		storageGaugeMetcric, _ := currentStorage.GetGaugeMetric(gaugeMetricName)
-		assert.Equal(t, gaugeMetricValue, storageGaugeMetcric)
+		storageGaugeMetcric, _ := currentStorage.GetMetric(context.TODO(), common.GaugeMetricName, gaugeMetricName)
+		assert.Equal(t, gaugeMetricValue, storageGaugeMetcric.Value)
 
-		storageCounterMetcric, _ := currentStorage.GetCounterMetric(counterMetricName)
-		assert.Equal(t, counterMetricValue, storageCounterMetcric)
+		storageCounterMetcric, _ := currentStorage.GetMetric(context.TODO(), common.CounterMetricName, counterMetricName)
+		assert.Equal(t, counterMetricValue, storageCounterMetcric.Delta)
 	})
 }
 
 func TestServerOperationsV2(t *testing.T) {
-	t.Run("Update Gauge metric", func(t *testing.T) {
-		currentStorage, endpointURL, destructor := createTestEnvironment()
+	gaugeTestFunc := func(t *testing.T, key string) {
+		currentStorage, endpointURL, destructor := createTestEnvironment(key)
 		defer destructor()
 
 		value := rand.Float64()
-		metric := common.Metrics{
+		metric := &common.Metrics{
 			ID:    "qwerty",
 			MType: common.GaugeMetricName,
 			Value: &value,
+		}
+
+		if key != "" {
+			metric.Hash, _ = common.GetMetricHash(metric, key)
 		}
 
 		jsonResp, err := metric.MarshalJSON()
@@ -253,8 +262,9 @@ func TestServerOperationsV2(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-			storageMetcric, _ := currentStorage.GetGaugeMetric(metric.ID)
-			assert.Equal(t, value, storageMetcric)
+			storageMetcric, err := currentStorage.GetMetric(context.TODO(), common.GaugeMetricName, metric.ID)
+			require.NoError(t, err)
+			assert.Equal(t, value, storageMetcric.Value)
 		}
 
 		{
@@ -270,19 +280,30 @@ func TestServerOperationsV2(t *testing.T) {
 			assert.Equal(t, metric.Value, respMetric.Value)
 			assert.Equal(t, metric.ID, respMetric.ID)
 			assert.Equal(t, metric.MType, respMetric.MType)
-			assert.Equal(t, metric.Delta, (*int64)(nil))
+			assert.Equal(t, metric.Hash, respMetric.Hash)
 		}
+	}
+
+	t.Run("Update Gauge metric", func(t *testing.T) {
+		gaugeTestFunc(t, "")
+	})
+	t.Run("Update Gauge metric with key", func(t *testing.T) {
+		gaugeTestFunc(t, "cx,;s;dfends")
 	})
 
-	t.Run("Update Counter metric", func(t *testing.T) {
-		currentStorage, endpointURL, destructor := createTestEnvironment()
+	counterTestFunc := func(t *testing.T, key string) {
+		currentStorage, endpointURL, destructor := createTestEnvironment(key)
 		defer destructor()
 
 		delta := rand.Int63()
-		metric := common.Metrics{
+		metric := &common.Metrics{
 			ID:    "qwerty",
 			MType: common.CounterMetricName,
 			Delta: &delta,
+		}
+
+		if key != "" {
+			metric.Hash, _ = common.GetMetricHash(metric, key)
 		}
 
 		jsonResp, err := metric.MarshalJSON()
@@ -295,8 +316,9 @@ func TestServerOperationsV2(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-			storageMetcric, _ := currentStorage.GetCounterMetric(metric.ID)
-			assert.Equal(t, delta, storageMetcric)
+			storageMetcric, err := currentStorage.GetMetric(context.TODO(), common.CounterMetricName, metric.ID)
+			require.NoError(t, err)
+			assert.Equal(t, delta, storageMetcric.Delta)
 		}
 
 		{
@@ -309,10 +331,19 @@ func TestServerOperationsV2(t *testing.T) {
 			respMetric := common.Metrics{}
 			require.NoError(t, json.NewDecoder(resp.Body).Decode(&respMetric))
 
+			t.Log(respMetric)
+
 			assert.Equal(t, metric.Delta, respMetric.Delta)
 			assert.Equal(t, metric.ID, respMetric.ID)
 			assert.Equal(t, metric.MType, respMetric.MType)
-			assert.Equal(t, respMetric.Value, (*float64)(nil))
+			assert.Equal(t, metric.Hash, respMetric.Hash)
 		}
+	}
+
+	t.Run("Update Counter metric", func(t *testing.T) {
+		counterTestFunc(t, "")
+	})
+	t.Run("Update Counter metric with key", func(t *testing.T) {
+		counterTestFunc(t, "zxmxlcjsda")
 	})
 }

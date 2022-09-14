@@ -1,10 +1,12 @@
 package storage_test
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
 
+	"github.com/GermanVor/devops-pet-project/internal/common"
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 	"github.com/bmizerany/assert"
 	"github.com/stretchr/testify/require"
@@ -43,19 +45,22 @@ func compareMaps[T any](t *testing.T, expectedMap, currentMap map[string]T) {
 	assert.Equal(t, len(currentMap), counterCount)
 }
 
-func compareBackupAndStorage(t *testing.T, backupObject *storage.BackupObject, storage *storage.Storage) {
+func compareBackupAndStorage(t *testing.T, backupObject *storage.BackupObject, stor *storage.Storage) {
 	counterCount := 0
-	storage.ForEachCounterMetric(func(metricName string, value int64) {
-		assert.Equal(t, backupObject.CounterMetrics[metricName], value)
-		counterCount++
-	})
-	assert.Equal(t, len(backupObject.CounterMetrics), counterCount)
-
 	gaugeCount := 0
-	storage.ForEachGaugeMetric(func(metricName string, value float64) {
-		assert.Equal(t, backupObject.GaugeMetrics[metricName], value)
-		gaugeCount++
+
+	stor.ForEachMetrics(context.TODO(), func(sm *storage.StorageMetric) {
+		switch sm.MType {
+		case common.GaugeMetricName:
+			assert.Equal(t, backupObject.GaugeMetrics[sm.ID], sm.Value)
+			gaugeCount++
+		case common.CounterMetricName:
+			assert.Equal(t, backupObject.CounterMetrics[sm.ID], sm.Delta)
+			counterCount++
+		}
 	})
+
+	assert.Equal(t, len(backupObject.CounterMetrics), counterCount)
 	assert.Equal(t, len(backupObject.GaugeMetrics), gaugeCount)
 }
 
@@ -88,13 +93,23 @@ func TestMain(t *testing.T) {
 		counterMetrics := createCounterMetrics()
 
 		baseStor, _ := storage.Init(nil)
-		stor  := storage.WithBackup(baseStor, backupFileName)
+		stor := storage.WithBackup(baseStor, backupFileName)
 
-		for name, value := range gaugeMetrics {
-			stor.SetGaugeMetric(name, value)
+		for id, value := range gaugeMetrics {
+			err := stor.UpdateMetric(context.TODO(), common.Metrics{
+				MType: common.GaugeMetricName,
+				ID:    id,
+				Value: &value,
+			})
+			require.NoError(t, err)
 		}
-		for name, value := range counterMetrics {
-			stor.SetCounterMetric(name, value)
+		for id, delta := range counterMetrics {
+			err := stor.UpdateMetric(context.TODO(), common.Metrics{
+				MType: common.CounterMetricName,
+				ID:    id,
+				Delta: &delta,
+			})
+			require.NoError(t, err)
 		}
 
 		file, err := os.OpenFile(backupFileName, os.O_RDONLY, 0777)

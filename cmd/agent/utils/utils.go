@@ -9,13 +9,13 @@ import (
 
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
 	"github.com/GermanVor/devops-pet-project/internal/common"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
 )
 
-func CollectMetrics() *metrics.RuntimeMetrics {
+func CollectMetrics(m *metrics.RuntimeMetrics) {
 	rtm := runtime.MemStats{}
 	runtime.ReadMemStats(&rtm)
-
-	m := metrics.RuntimeMetrics{}
 
 	m.Alloc = metrics.Gauge(rtm.Alloc)
 	m.BuckHashSys = metrics.Gauge(rtm.BuckHashSys)
@@ -46,8 +46,21 @@ func CollectMetrics() *metrics.RuntimeMetrics {
 	m.TotalAlloc = metrics.Gauge(rtm.TotalAlloc)
 
 	m.RandomValue = metrics.Gauge(rand.Float64())
+}
 
-	return &m
+func CollectGopsutilMetrics(m *metrics.RuntimeMetrics) {
+	v, _ := mem.VirtualMemory()
+	m.TotalMemory = metrics.Gauge(v.Total)
+	m.FreeMemory = metrics.Gauge(v.Free)
+
+	count := metrics.Gauge(0)
+	a, _ := cpu.Percent(0, true)
+	for _, percent := range a {
+		if percent != 0 {
+			count++
+		}
+	}
+	m.CPUutilization1 = count
 }
 
 func BuildEndpointURL(endpointURL, metricType, metricName, metricValue string) string {

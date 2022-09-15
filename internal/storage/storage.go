@@ -48,6 +48,7 @@ const (
 )
 
 var ErrUnknowMetricType = errors.New("unknown metric type")
+
 func NewUnknownMetricTypeError(str string) error {
 	return fmt.Errorf(`%w: %s`, ErrUnknowMetricType, str)
 }
@@ -283,7 +284,7 @@ func (stor *Storage) UpdateMetrics(ctx context.Context, metricList []common.Metr
 		stor.gaugeMap[key] = value
 	}
 	for key, delta := range counterMap {
-		stor.counterMap[key] = delta
+		stor.counterMap[key] += delta
 	}
 
 	return nil
@@ -379,6 +380,7 @@ func WithBackup(stor *Storage, backupFilePath string) StorageInterface {
 }
 
 type Empty struct{}
+
 func InitBackupTicker(stor *Storage, backupFilePath string, backupInterval time.Duration) func() {
 	ticker := time.NewTicker(backupInterval)
 	doneFlag := make(chan Empty)

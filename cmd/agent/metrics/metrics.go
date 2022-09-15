@@ -43,12 +43,16 @@ type RuntimeMetrics struct {
 	Sys           Gauge
 	TotalAlloc    Gauge
 
+	TotalMemory     Gauge
+	FreeMemory      Gauge
+	CPUutilization1 Gauge
+
 	PollCount   Counter
 	RandomValue Gauge
 }
 
 func ForEach(metricsP *RuntimeMetrics, metricHandler func(metricType, metricName, metricValue string)) {
-	if (metricsP == nil) {
+	if metricsP == nil {
 		return
 	}
 

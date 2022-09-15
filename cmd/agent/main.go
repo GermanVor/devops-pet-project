@@ -18,8 +18,8 @@ import (
 
 var Config = &common.AgentConfig{
 	Address:        "localhost:8080",
-	PollInterval:   2 * time.Second,
-	ReportInterval: 10 * time.Second,
+	PollInterval:   1 * time.Second,
+	ReportInterval: 2 * time.Second,
 }
 
 func SendMetricsV1(metricsObj *metrics.RuntimeMetrics, endpointURL string) {
@@ -133,7 +133,21 @@ func Start(ctx context.Context, endpointURL, key string) {
 		for {
 			select {
 			case <-pollTicker.C:
-				metricsPointer := utils.CollectMetrics()
+				metricsPointer := &metrics.RuntimeMetrics{}
+
+				wg := sync.WaitGroup{}
+				wg.Add(2)
+
+				go func() {
+					utils.CollectMetrics(metricsPointer)
+					wg.Done()
+				}()
+				go func() {
+					utils.CollectGopsutilMetrics(metricsPointer)
+					wg.Done()
+				}()
+
+				wg.Wait()
 
 				mux.Lock()
 
@@ -160,7 +174,7 @@ func Start(ctx context.Context, endpointURL, key string) {
 				mux.Unlock()
 
 				// SendMetricsV1(&metricsCopy, endpointURL)
-				SendMetricsV2(&metricsCopy, endpointURL, key)
+				// SendMetricsV2(&metricsCopy, endpointURL, key)
 				SendMetricsButchV2(&metricsCopy, endpointURL, key)
 
 			case <-ctx.Done():
@@ -176,6 +190,8 @@ func main() {
 	common.InitAgentFlagConfig(Config)
 	flag.Parse()
 	common.InitAgentEnvConfig(Config)
+
+	log.Println("Agent Config", Config)
 
 	ctx := context.Background()
 

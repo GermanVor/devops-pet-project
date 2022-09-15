@@ -9,6 +9,8 @@ import (
 
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
 	"github.com/GermanVor/devops-pet-project/internal/common"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
 )
 
 func CollectMetrics() *metrics.RuntimeMetrics {
@@ -46,6 +48,13 @@ func CollectMetrics() *metrics.RuntimeMetrics {
 	m.TotalAlloc = metrics.Gauge(rtm.TotalAlloc)
 
 	m.RandomValue = metrics.Gauge(rand.Float64())
+
+	v, _ := mem.VirtualMemory()
+	m.TotalMemory = metrics.Gauge(v.Total)
+	m.FreeMemory = metrics.Gauge(v.Free)
+
+	CPUutilization1, _ := cpu.Counts(true)
+	m.CPUutilization1 = metrics.Gauge(CPUutilization1)
 
 	return &m
 }

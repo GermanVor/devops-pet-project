@@ -139,12 +139,12 @@ func Start(ctx context.Context, endpointURL, key string) {
 				wg.Add(2)
 
 				go func() {
+					defer wg.Done()
 					utils.CollectMetrics(metricsPointer)
-					wg.Done()
 				}()
 				go func() {
+					defer wg.Done()
 					utils.CollectGopsutilMetrics(metricsPointer)
-					wg.Done()
 				}()
 
 				wg.Wait()

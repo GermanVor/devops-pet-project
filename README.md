@@ -8,6 +8,7 @@ STORE_INTERVAL="300s"
 STORE_FILE="/tmp/devops-metrics-db.json"
 RESTORE="true"
 KEY=""
+DATABASE_DSN=""
 ```
 
 `ADDRESS` - Common for Agent and Server Adress (Server Address and Agent requests endpoint Address).
@@ -26,3 +27,5 @@ KEY=""
 `KEY` - Static key (for educational purposes) for `Metrics` hash generation.
 If the `Agent` is started with a `KEY` (`-k=...` or `KEY=""` in `.env`), then all metrics will be subscribed
 by simple hash function.
+
+`DATABASE_DSN` - postgreSQL link to connect and create data base for collecting metrics

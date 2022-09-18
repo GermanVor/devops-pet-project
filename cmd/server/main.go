@@ -57,14 +57,11 @@ func main() {
 		defer sqlStorage.Close()
 
 		currentStorage = sqlStorage
-		conn := sqlStorage.GetConn()
 
 		r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-			if conn != nil {
-				if conn.Ping(r.Context()) == nil {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
+			if sqlStorage.Ping(r.Context()) == nil {
+				w.WriteHeader(http.StatusOK)
+				return
 			}
 
 			w.WriteHeader(http.StatusInternalServerError)

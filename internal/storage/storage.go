@@ -79,8 +79,8 @@ func InitV2(dbContext context.Context, connString string) (*StorageV2, error) {
 	return &StorageV2{dbPool: conn}, nil
 }
 
-func (stor *StorageV2) GetConn() *pgxpool.Pool {
-	return stor.dbPool
+func (stor *StorageV2) Ping(ctx context.Context) error {
+	return stor.dbPool.Ping(ctx)
 }
 
 func (stor *StorageV2) Close() {

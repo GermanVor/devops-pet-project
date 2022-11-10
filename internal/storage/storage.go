@@ -30,7 +30,6 @@ type StorageInterface interface {
 }
 
 type StorageV2 struct {
-	StorageInterface
 	dbPool *pgxpool.Pool
 }
 
@@ -53,7 +52,6 @@ func NewUnknownMetricTypeError(str string) error {
 	return fmt.Errorf(`%w: %s`, ErrUnknowMetricType, str)
 }
 
-// go run ./cmd/server/main.go -d=postgres://zzman:@localhost:5432/postgres
 func InitV2(dbContext context.Context, connString string) (*StorageV2, error) {
 	conn, err := pgxpool.Connect(dbContext, connString)
 	if err != nil {
@@ -113,53 +111,43 @@ func (stor *StorageV2) GetMetric(ctx context.Context, mType string, id string) (
 		ID:    id,
 	}
 
+	var err error
+
 	switch mType {
 	case common.GaugeMetricName:
-		row := stor.dbPool.QueryRow(ctx, selectValueSQL, id)
-		err := row.Scan(&storageMetric.Value)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, nil
-			} else {
-				return nil, err
-			}
-		}
-
-		return storageMetric, nil
+		err = stor.dbPool.QueryRow(ctx, selectValueSQL, id).
+			Scan(&storageMetric.Value)
 	case common.CounterMetricName:
-		row := stor.dbPool.QueryRow(ctx, selectDeltaSQL, id)
-		err := row.Scan(&storageMetric.Delta)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, nil
-			} else {
-				return nil, err
-			}
-		}
-
-		return storageMetric, nil
+		err = stor.dbPool.QueryRow(ctx, selectDeltaSQL, id).
+			Scan(&storageMetric.Delta)
 	default:
 		return nil, NewUnknownMetricTypeError(mType)
 	}
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	return storageMetric, nil
 }
 
 func (stor *StorageV2) UpdateMetric(ctx context.Context, metric common.Metrics) error {
+	var err error
+
 	switch metric.MType {
 	case common.GaugeMetricName:
-		_, err := stor.dbPool.Exec(ctx, insertValueSQL, metric.ID, metric.MType, *metric.Value)
-		if err != nil {
-			return err
-		}
+		_, err = stor.dbPool.Exec(ctx, insertValueSQL, metric.ID, metric.MType, *metric.Value)
 	case common.CounterMetricName:
-		_, err := stor.dbPool.Exec(ctx, insertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
-		if err != nil {
-			return err
-		}
+		_, err = stor.dbPool.Exec(ctx, insertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
 	default:
 		return NewUnknownMetricTypeError(metric.MType)
 	}
 
-	return nil
+	return err
 }
 
 func (stor *StorageV2) UpdateMetrics(ctx context.Context, metricsList []common.Metrics) error {
@@ -190,8 +178,6 @@ type GaugeMetricsStorage map[string]float64
 type CounterMetricsStorage map[string]int64
 
 type Storage struct {
-	StorageInterface
-
 	gaugeMap   GaugeMetricsStorage
 	counterMap CounterMetricsStorage
 	storageRWM sync.RWMutex

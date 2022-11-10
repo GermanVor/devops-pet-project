@@ -39,13 +39,13 @@ func createTestEnvironment(key string) (*storage.Storage, string, func()) {
 }
 
 func TestServerOperations(t *testing.T) {
+	currentStorage, endpointURL, destructor := createTestEnvironment("")
+	defer destructor()
+
+	gaugeMetricName := "gaugeQwerty"
+	gaugeMetricValue := rand.Float64()
+
 	t.Run("Update Gauge metric", func(t *testing.T) {
-		gaugeMetricName := "qwerty"
-		gaugeMetricValue := rand.Float64()
-
-		currentStorage, endpointURL, destructor := createTestEnvironment("")
-		defer destructor()
-
 		{
 			req, err := utils.BuildRequest(endpointURL, metrics.GaugeTypeName, gaugeMetricName, fmt.Sprint(gaugeMetricValue))
 			require.NoError(t, err)
@@ -80,14 +80,11 @@ func TestServerOperations(t *testing.T) {
 		}
 	})
 
+	counterMetricName := "counterQwerty"
+	counterMetricDelta := rand.Int63()
+
 	t.Run("Update Counter metric", func(t *testing.T) {
-		counterMetricName := "qwerty2"
-		delta := rand.Int63()
-
-		currentStorage, endpointURL, destructor := createTestEnvironment("")
-		defer destructor()
-
-		req, err := utils.BuildRequest(endpointURL, metrics.CounterTypeName, counterMetricName, fmt.Sprint(delta))
+		req, err := utils.BuildRequest(endpointURL, metrics.CounterTypeName, counterMetricName, fmt.Sprint(counterMetricDelta))
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -99,13 +96,10 @@ func TestServerOperations(t *testing.T) {
 
 		storageMetcric, err := currentStorage.GetMetric(context.TODO(), common.CounterMetricName, counterMetricName)
 		require.NoError(t, err)
-		assert.Equal(t, delta, storageMetcric.Delta)
+		assert.Equal(t, counterMetricDelta, storageMetcric.Delta)
 	})
 
 	t.Run("Gauge bad metricName", func(t *testing.T) {
-		_, endpointURL, destructor := createTestEnvironment("")
-		defer destructor()
-
 		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/gauge/", nil)
 		require.NoError(t, err)
 
@@ -120,9 +114,6 @@ func TestServerOperations(t *testing.T) {
 	})
 
 	t.Run("Counter bad metricName", func(t *testing.T) {
-		_, endpointURL, destructor := createTestEnvironment("")
-		defer destructor()
-
 		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/counter/", nil)
 		require.NoError(t, err)
 
@@ -137,11 +128,8 @@ func TestServerOperations(t *testing.T) {
 	})
 
 	t.Run("Gauge bad value", func(t *testing.T) {
-		currentStorage, endpointURL, destructor := createTestEnvironment("")
-		defer destructor()
-
-		metricName := "qwerty3"
-		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/gauge/"+metricName+"/qwe", nil)
+		badGaugeMetricName := "badGaugeQwerty"
+		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/gauge/"+badGaugeMetricName+"/qwe", nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -153,17 +141,14 @@ func TestServerOperations(t *testing.T) {
 		err = resp.Body.Close()
 		require.NoError(t, err)
 
-		storageMetcric, err := currentStorage.GetMetric(context.TODO(), common.GaugeMetricName, metricName)
+		storageMetcric, err := currentStorage.GetMetric(context.TODO(), common.GaugeMetricName, badGaugeMetricName)
 		assert.Equal(t, nil, err)
 		assert.Equal(t, (*storage.StorageMetric)(nil), storageMetcric)
 	})
 
 	t.Run("Counter bad value", func(t *testing.T) {
-		currentStorage, endpointURL, destructor := createTestEnvironment("")
-		defer destructor()
-
-		metricName := "qwerty4"
-		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/counter/"+metricName+"/qwe", nil)
+		badCounterMetricName := "badCounterQwerty"
+		req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/counter/"+badCounterMetricName+"/qwe", nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -175,39 +160,12 @@ func TestServerOperations(t *testing.T) {
 		err = resp.Body.Close()
 		require.NoError(t, err)
 
-		storageMetcric, err := currentStorage.GetMetric(context.TODO(), common.CounterMetricName, metricName)
+		storageMetcric, err := currentStorage.GetMetric(context.TODO(), common.CounterMetricName, badCounterMetricName)
 		assert.Equal(t, nil, err)
 		assert.Equal(t, (*storage.StorageMetric)(nil), storageMetcric)
 	})
 
 	t.Run("Get all metrics List", func(t *testing.T) {
-		currentStorage, endpointURL, destructor := createTestEnvironment("")
-		defer destructor()
-
-		gaugeMetricName := "qwerty"
-		gaugeMetricValue := rand.Float64()
-
-		{
-			req, err := utils.BuildRequest(endpointURL, metrics.GaugeTypeName, gaugeMetricName, fmt.Sprint(gaugeMetricValue))
-			require.NoError(t, err)
-
-			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-		}
-
-		counterMetricName := "qwerty2"
-		counterMetricValue := rand.Int63()
-
-		{
-			req, err := utils.BuildRequest(endpointURL, metrics.CounterTypeName, counterMetricName, fmt.Sprint(counterMetricValue))
-			require.NoError(t, err)
-
-			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-		}
-
 		req, err := http.NewRequest(http.MethodGet, endpointURL, nil)
 		require.NoError(t, err)
 
@@ -224,7 +182,7 @@ func TestServerOperations(t *testing.T) {
 		stringBody := string(body)
 
 		assert.Equal(t, true, strings.Contains(stringBody, gaugeMetricName+" - "+fmt.Sprint(gaugeMetricValue)))
-		assert.Equal(t, true, strings.Contains(stringBody, counterMetricName+" - "+fmt.Sprint(counterMetricValue)))
+		assert.Equal(t, true, strings.Contains(stringBody, counterMetricName+" - "+fmt.Sprint(counterMetricDelta)))
 
 		assert.Equal(t, 4, strings.Count(stringBody, "li"))
 
@@ -232,7 +190,7 @@ func TestServerOperations(t *testing.T) {
 		assert.Equal(t, gaugeMetricValue, storageGaugeMetcric.Value)
 
 		storageCounterMetcric, _ := currentStorage.GetMetric(context.TODO(), common.CounterMetricName, counterMetricName)
-		assert.Equal(t, counterMetricValue, storageCounterMetcric.Delta)
+		assert.Equal(t, counterMetricDelta, storageCounterMetcric.Delta)
 	})
 }
 

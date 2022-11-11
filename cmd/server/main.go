@@ -12,7 +12,11 @@ import (
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+
+	_ "net/http/pprof"
 )
+
+var isPprof = flag.Bool("pprof", false, "to start pprof server")
 
 var Config = &common.ServerConfig{
 	Address:       "localhost:8080",
@@ -88,6 +92,17 @@ func main() {
 	handlers.InitRouter(r, currentStorage, Config.Key)
 
 	log.Println("Server Started: http://" + Config.Address)
+
+	if *isPprof {
+		log.Println("Pprof server started http://127.0.0.1:8585/debug/pprof/profile")
+
+		go func() {
+			err := http.ListenAndServe(":8585", nil)
+			if err != nil {
+				log.Println("Pprof server started error", err)
+			}
+		}()
+	}
 
 	log.Fatal(http.ListenAndServe(Config.Address, r))
 }

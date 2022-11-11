@@ -16,7 +16,7 @@ import (
 	_ "net/http/pprof"
 )
 
-var isPprof = flag.Bool("pprof", false, "to start pprof server")
+var ppofAddr = flag.String("ppofAddr", "", "addres of ppof server (e.g 'localhost:8585')")
 
 var Config = &common.ServerConfig{
 	Address:       "localhost:8080",
@@ -93,11 +93,11 @@ func main() {
 
 	log.Println("Server Started: http://" + Config.Address)
 
-	if *isPprof {
-		log.Println("Pprof server started http://127.0.0.1:8585/debug/pprof/profile")
+	if *ppofAddr != "" {
+		log.Printf("Pprof server started http://%s/debug/pprof/", *ppofAddr)
 
 		go func() {
-			err := http.ListenAndServe(":8585", nil)
+			err := http.ListenAndServe(*ppofAddr, nil)
 			if err != nil {
 				log.Println("Pprof server started error", err)
 			}

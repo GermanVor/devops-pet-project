@@ -34,21 +34,33 @@ type StorageV2 struct {
 }
 
 const (
+	// INSERT INTO metrics (id, mType, delta)
+	// VALUES ($1, $2, $3)
+	// ON CONFLICT (id) DO UPDATE SET delta = metrics.delta EXCLUDED.delta;
 	insertDeltaSQL = "INSERT INTO metrics (id, mType, delta) " +
 		"VALUES ($1, $2, $3) " +
 		"ON CONFLICT (id) DO UPDATE SET delta = metrics.delta + EXCLUDED.delta;"
+
+	// INSERT INTO metrics (id, mType, value)
+	// VALUES ($1, $2, $3)
+	// ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;"
 	insertValueSQL = "INSERT INTO metrics (id, mType, value) " +
 		"VALUES ($1, $2, $3) " +
 		"ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;"
 
-	selectDeltaSQL      = "SELECT delta FROM metrics WHERE id=$1"
-	selectValueSQL      = "SELECT value FROM metrics WHERE id=$1"
+	// SELECT delta FROM metrics WHERE id=$1
+	selectDeltaSQL = "SELECT delta FROM metrics WHERE id=$1"
+
+	// SELECT value FROM metrics WHERE id=$1
+	selectValueSQL = "SELECT value FROM metrics WHERE id=$1"
+
+	// SELECT id, mType, delta, value FROM metrics
 	selectDeltaValueSQL = "SELECT id, mType, delta, value FROM metrics"
 )
 
 var ErrUnknowMetricType = errors.New("unknown metric type")
 
-func NewUnknownMetricTypeError(str string) error {
+func newUnknownMetricTypeError(str string) error {
 	return fmt.Errorf(`%w: %s`, ErrUnknowMetricType, str)
 }
 
@@ -121,7 +133,7 @@ func (stor *StorageV2) GetMetric(ctx context.Context, mType string, id string) (
 		err = stor.dbPool.QueryRow(ctx, selectDeltaSQL, id).
 			Scan(&storageMetric.Delta)
 	default:
-		return nil, NewUnknownMetricTypeError(mType)
+		err = newUnknownMetricTypeError(mType)
 	}
 
 	if err != nil {
@@ -144,7 +156,7 @@ func (stor *StorageV2) UpdateMetric(ctx context.Context, metric common.Metrics) 
 	case common.CounterMetricName:
 		_, err = stor.dbPool.Exec(ctx, insertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
 	default:
-		return NewUnknownMetricTypeError(metric.MType)
+		err = newUnknownMetricTypeError(metric.MType)
 	}
 
 	return err
@@ -226,7 +238,7 @@ func (stor *Storage) GetMetric(ctx context.Context, mType string, id string) (*S
 			return storageMetric, nil
 		}
 	default:
-		return nil, NewUnknownMetricTypeError(mType)
+		return nil, newUnknownMetricTypeError(mType)
 	}
 
 	return nil, nil
@@ -242,7 +254,7 @@ func (stor *Storage) UpdateMetric(ctx context.Context, metric common.Metrics) er
 	case common.CounterMetricName:
 		stor.counterMap[metric.ID] += *metric.Delta
 	default:
-		return NewUnknownMetricTypeError(metric.MType)
+		return newUnknownMetricTypeError(metric.MType)
 	}
 
 	return nil
@@ -262,7 +274,7 @@ func (stor *Storage) UpdateMetrics(ctx context.Context, metricList []common.Metr
 		case common.CounterMetricName:
 			counterMap[metric.ID] = *metric.Delta
 		default:
-			return NewUnknownMetricTypeError(metric.MType)
+			return newUnknownMetricTypeError(metric.MType)
 		}
 	}
 

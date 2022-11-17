@@ -234,6 +234,30 @@ func GetMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageInter
 	w.Write(jsonResp)
 }
 
+func GetAllMetrics(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
+	list := make([]string, 0)
+
+	err := stor.ForEachMetrics(r.Context(), func(sm *storage.StorageMetric) {
+		item := ""
+
+		switch sm.MType {
+		case common.GaugeMetricName:
+			item = fmt.Sprint(sm.Value)
+		case common.CounterMetricName:
+			item = fmt.Sprint(sm.Delta)
+		}
+
+		list = append(list, fmt.Sprintf("<li>%s - %s</li>", sm.ID, item))
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	} else {
+		w.Header().Add("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, "<div><ul>%s</ul></div>", strings.Join(list, ""))
+	}
+}
+
 func InitRouter(r *chi.Mux, stor storage.StorageInterface, key string) *chi.Mux {
 	if stor == nil {
 		log.Fatalln("Storage do not created")
@@ -274,27 +298,7 @@ func InitRouter(r *chi.Mux, stor storage.StorageInterface, key string) *chi.Mux 
 	})
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		list := make([]string, 0)
-
-		err := stor.ForEachMetrics(r.Context(), func(sm *storage.StorageMetric) {
-			item := ""
-
-			switch sm.MType {
-			case common.GaugeMetricName:
-				item = fmt.Sprint(sm.Value)
-			case common.CounterMetricName:
-				item = fmt.Sprint(sm.Delta)
-			}
-
-			list = append(list, fmt.Sprintf("<li>%s - %s</li>", sm.ID, item))
-		})
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		} else {
-			w.Header().Add("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprintf(w, "<div><ul>%s</ul></div>", strings.Join(list, ""))
-		}
+		GetAllMetrics(w, r, stor)
 	})
 
 	return r

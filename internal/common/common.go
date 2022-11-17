@@ -40,6 +40,8 @@ var (
 	ErrGetMetricHash = errors.New("do not call SetMetricHash before metric.value is assigned")
 )
 
+// GetMetricHash build hash of the metrics
+// based on the sha256
 func GetMetricHash(metrics *Metrics, key string) (string, error) {
 	var hash string
 

@@ -89,6 +89,7 @@ func InitV2(dbContext context.Context, connString string) (*StorageV2, error) {
 	return &StorageV2{dbPool: conn}, nil
 }
 
+// Ping checks if the connection to database established
 func (stor *StorageV2) Ping(ctx context.Context) error {
 	return stor.dbPool.Ping(ctx)
 }
@@ -97,6 +98,7 @@ func (stor *StorageV2) Close() {
 	stor.dbPool.Close()
 }
 
+// ForEachMetrics passes through all metrics in database and call handler
 func (stor *StorageV2) ForEachMetrics(ctx context.Context, handler func(*StorageMetric)) error {
 	rows, err := stor.dbPool.Query(context.Background(), selectDeltaValueSQL)
 	if err != nil {
@@ -195,6 +197,7 @@ type Storage struct {
 	storageRWM sync.RWMutex
 }
 
+// ForEachMetrics passes through all metrics in database and call handler
 func (stor *Storage) ForEachMetrics(ctx context.Context, handler func(*StorageMetric)) error {
 	stor.storageRWM.RLock()
 	defer stor.storageRWM.RUnlock()

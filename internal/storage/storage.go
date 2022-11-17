@@ -407,3 +407,37 @@ func InitBackupTicker(stor *Storage, backupFilePath string, backupInterval time.
 
 	return stopTicker
 }
+
+type MockStorage struct {
+	StorageInterface
+
+	ForEachMetricsResponse error
+	ForEachMetricsArr      []*StorageMetric
+
+	GetMetricResponse      *StorageMetric
+	GetMetricErrorResponse error
+
+	UpdateMetricResponse error
+
+	UpdateMetricsResponse error
+}
+
+func (s *MockStorage) ForEachMetrics(ctx context.Context, h func(*StorageMetric)) error {
+	for _, s := range s.ForEachMetricsArr {
+		h(s)
+	}
+
+	return s.ForEachMetricsResponse
+}
+
+func (s *MockStorage) GetMetric(ctx context.Context, mType string, id string) (*StorageMetric, error) {
+	return s.GetMetricResponse, s.GetMetricErrorResponse
+}
+
+func (s *MockStorage) UpdateMetric(ctx context.Context, metric common.Metrics) error {
+	return s.UpdateMetricResponse
+}
+
+func (s *MockStorage) UpdateMetrics(ctx context.Context, metricList []common.Metrics) error {
+	return s.UpdateMetricsResponse
+}

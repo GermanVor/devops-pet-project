@@ -14,7 +14,7 @@ import (
 
 func createGaugeMetrics() storage.GaugeMetricsStorage {
 	gaugeMetrics := make(storage.GaugeMetricsStorage)
-	gaugeMetrics["qwerty"] = 24
+	gaugeMetrics["qwerty1"] = 24
 	gaugeMetrics["qwerty2"] = 2424
 
 	return gaugeMetrics
@@ -22,17 +22,10 @@ func createGaugeMetrics() storage.GaugeMetricsStorage {
 
 func createCounterMetrics() storage.CounterMetricsStorage {
 	counterMetrics := make(storage.CounterMetricsStorage)
-	counterMetrics["ytreeq"] = 5
-	counterMetrics["ytre2eq"] = 55
+	counterMetrics["qwerty3"] = 5
+	counterMetrics["qwerty4"] = 55
 
 	return counterMetrics
-}
-
-func createBackupObject() *storage.BackupObject {
-	return &storage.BackupObject{
-		GaugeMetrics:   createGaugeMetrics(),
-		CounterMetrics: createCounterMetrics(),
-	}
 }
 
 func compareMaps[T any](t *testing.T, expectedMap, currentMap map[string]T) {
@@ -68,7 +61,10 @@ func TestMain(t *testing.T) {
 	t.Run("Init from backup file", func(t *testing.T) {
 		backupFileName := "/tmp/devops-metrics-db.json"
 
-		backupObject := createBackupObject()
+		backupObject := &storage.BackupObject{
+			GaugeMetrics:   createGaugeMetrics(),
+			CounterMetrics: createCounterMetrics(),
+		}
 
 		file, err := os.OpenFile(backupFileName, os.O_WRONLY|os.O_CREATE, 0777)
 		require.NoError(t, err)

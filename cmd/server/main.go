@@ -12,7 +12,11 @@ import (
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+
+	_ "net/http/pprof"
 )
+
+var ppofAddr = flag.String("ppofAddr", "", "addres of ppof server (e.g 'localhost:8585')")
 
 var Config = &common.ServerConfig{
 	Address:       "localhost:8080",
@@ -88,6 +92,17 @@ func main() {
 	handlers.InitRouter(r, currentStorage, Config.Key)
 
 	log.Println("Server Started: http://" + Config.Address)
+
+	if *ppofAddr != "" {
+		log.Printf("Pprof server started http://%s/debug/pprof/", *ppofAddr)
+
+		go func() {
+			err := http.ListenAndServe(*ppofAddr, nil)
+			if err != nil {
+				log.Println("Pprof server started error", err)
+			}
+		}()
+	}
 
 	log.Fatal(http.ListenAndServe(Config.Address, r))
 }

@@ -1,3 +1,4 @@
+// All the necessary endpoints for storing Metrics in Storage.
 package handlers
 
 import (
@@ -13,6 +14,10 @@ import (
 	"github.com/go-chi/chi"
 )
 
+// UpdateMetricV1 [Depricatred] Handler to save Agent metrics by URL.
+//
+// URL view: /update/{mType}/{id}/{metricValue} where
+// mType - (gauge|counter), id - Metric Id, metricValue - (float64|int64)
 func UpdateMetricV1(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
 	metric := common.Metrics{
 		MType: chi.URLParam(r, "mType"),
@@ -49,6 +54,19 @@ func UpdateMetricV1(w http.ResponseWriter, r *http.Request, stor storage.Storage
 	}
 }
 
+// UpdateMetric Handler to save Agent metrics by request Body.
+//
+// key - secret key to for authorization.
+//
+// Expected Request Body interface is Metrics.
+//
+//	type Metrics struct {
+//		ID    string   `json:"id"`              // имя метрики
+//		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
+//		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
+//		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+//		Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
+//	}
 func UpdateMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface, key string) {
 	metric := &common.Metrics{}
 
@@ -86,6 +104,17 @@ func UpdateMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageIn
 	}
 }
 
+// UpdateMetrics Handler to save pack of Metrics by request Body.
+//
+// Expected Request Body interface is []Metrics.
+//
+//	type Metrics struct {
+//		ID    string   `json:"id"`              // имя метрики
+//		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
+//		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
+//		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+//		Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
+//	}
 func UpdateMetrics(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
 	metricsArr := []common.Metrics{}
 
@@ -107,6 +136,12 @@ func missedMetricNameHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
 
+// GetMetricV1 [Depricatred] Handler to get Agent metrics by URL.
+//
+// URL view: /value/{mType}/{id} where
+// mType - (gauge|counter), id - Metric Id.
+//
+// Response is Metric Value as String.
 func GetMetricV1(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
 	mType := chi.URLParam(r, "mType")
 	id := chi.URLParam(r, "id")
@@ -140,6 +175,21 @@ func GetMetricV1(w http.ResponseWriter, r *http.Request, stor storage.StorageInt
 	}
 }
 
+// GetMetric Handler to get Agent metrics by URL.
+//
+// key - secret key to for authorization.
+//
+// Expected Request Body interface is Metrics. Delta and Value field in Request will be ignored.
+//
+//	type Metrics struct {
+//		ID    string   `json:"id"`              // имя метрики
+//		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
+//		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
+//		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+//		Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
+//	}
+//
+// Response is Metric Value as String.
 func GetMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface, key string) {
 	w.Header().Set("Content-Type", "application/json")
 	metric := &common.Metrics{}
@@ -184,6 +234,30 @@ func GetMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageInter
 	w.Write(jsonResp)
 }
 
+func GetAllMetrics(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
+	list := make([]string, 0)
+
+	err := stor.ForEachMetrics(r.Context(), func(sm *storage.StorageMetric) {
+		item := ""
+
+		switch sm.MType {
+		case common.GaugeMetricName:
+			item = fmt.Sprint(sm.Value)
+		case common.CounterMetricName:
+			item = fmt.Sprint(sm.Delta)
+		}
+
+		list = append(list, fmt.Sprintf("<li>%s - %s</li>", sm.ID, item))
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	} else {
+		w.Header().Add("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, "<div><ul>%s</ul></div>", strings.Join(list, ""))
+	}
+}
+
 func InitRouter(r *chi.Mux, stor storage.StorageInterface, key string) *chi.Mux {
 	if stor == nil {
 		log.Fatalln("Storage do not created")
@@ -224,27 +298,7 @@ func InitRouter(r *chi.Mux, stor storage.StorageInterface, key string) *chi.Mux 
 	})
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		list := make([]string, 0)
-
-		err := stor.ForEachMetrics(r.Context(), func(sm *storage.StorageMetric) {
-			item := ""
-
-			switch sm.MType {
-			case common.GaugeMetricName:
-				item = fmt.Sprint(sm.Value)
-			case common.CounterMetricName:
-				item = fmt.Sprint(sm.Delta)
-			}
-
-			list = append(list, fmt.Sprintf("<li>%s - %s</li>", sm.ID, item))
-		})
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		} else {
-			w.Header().Add("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprintf(w, "<div><ul>%s</ul></div>", strings.Join(list, ""))
-		}
+		GetAllMetrics(w, r, stor)
 	})
 
 	return r

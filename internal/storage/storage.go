@@ -30,30 +30,40 @@ type StorageInterface interface {
 }
 
 type StorageV2 struct {
-	StorageInterface
 	dbPool *pgxpool.Pool
 }
 
 const (
+	// INSERT INTO metrics (id, mType, delta)
+	// VALUES ($1, $2, $3)
+	// ON CONFLICT (id) DO UPDATE SET delta = metrics.delta EXCLUDED.delta;
 	insertDeltaSQL = "INSERT INTO metrics (id, mType, delta) " +
 		"VALUES ($1, $2, $3) " +
 		"ON CONFLICT (id) DO UPDATE SET delta = metrics.delta + EXCLUDED.delta;"
+
+	// INSERT INTO metrics (id, mType, value)
+	// VALUES ($1, $2, $3)
+	// ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;"
 	insertValueSQL = "INSERT INTO metrics (id, mType, value) " +
 		"VALUES ($1, $2, $3) " +
 		"ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;"
 
-	selectDeltaSQL      = "SELECT delta FROM metrics WHERE id=$1"
-	selectValueSQL      = "SELECT value FROM metrics WHERE id=$1"
+	// SELECT delta FROM metrics WHERE id=$1
+	selectDeltaSQL = "SELECT delta FROM metrics WHERE id=$1"
+
+	// SELECT value FROM metrics WHERE id=$1
+	selectValueSQL = "SELECT value FROM metrics WHERE id=$1"
+
+	// SELECT id, mType, delta, value FROM metrics
 	selectDeltaValueSQL = "SELECT id, mType, delta, value FROM metrics"
 )
 
 var ErrUnknowMetricType = errors.New("unknown metric type")
 
-func NewUnknownMetricTypeError(str string) error {
+func newUnknownMetricTypeError(str string) error {
 	return fmt.Errorf(`%w: %s`, ErrUnknowMetricType, str)
 }
 
-// go run ./cmd/server/main.go -d=postgres://zzman:@localhost:5432/postgres
 func InitV2(dbContext context.Context, connString string) (*StorageV2, error) {
 	conn, err := pgxpool.Connect(dbContext, connString)
 	if err != nil {
@@ -79,6 +89,7 @@ func InitV2(dbContext context.Context, connString string) (*StorageV2, error) {
 	return &StorageV2{dbPool: conn}, nil
 }
 
+// Ping checks if the connection to database established
 func (stor *StorageV2) Ping(ctx context.Context) error {
 	return stor.dbPool.Ping(ctx)
 }
@@ -87,6 +98,7 @@ func (stor *StorageV2) Close() {
 	stor.dbPool.Close()
 }
 
+// ForEachMetrics passes through all metrics in database and call handler
 func (stor *StorageV2) ForEachMetrics(ctx context.Context, handler func(*StorageMetric)) error {
 	rows, err := stor.dbPool.Query(context.Background(), selectDeltaValueSQL)
 	if err != nil {
@@ -113,53 +125,43 @@ func (stor *StorageV2) GetMetric(ctx context.Context, mType string, id string) (
 		ID:    id,
 	}
 
+	var err error
+
 	switch mType {
 	case common.GaugeMetricName:
-		row := stor.dbPool.QueryRow(ctx, selectValueSQL, id)
-		err := row.Scan(&storageMetric.Value)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, nil
-			} else {
-				return nil, err
-			}
-		}
-
-		return storageMetric, nil
+		err = stor.dbPool.QueryRow(ctx, selectValueSQL, id).
+			Scan(&storageMetric.Value)
 	case common.CounterMetricName:
-		row := stor.dbPool.QueryRow(ctx, selectDeltaSQL, id)
-		err := row.Scan(&storageMetric.Delta)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, nil
-			} else {
-				return nil, err
-			}
-		}
-
-		return storageMetric, nil
+		err = stor.dbPool.QueryRow(ctx, selectDeltaSQL, id).
+			Scan(&storageMetric.Delta)
 	default:
-		return nil, NewUnknownMetricTypeError(mType)
+		err = newUnknownMetricTypeError(mType)
 	}
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	return storageMetric, nil
 }
 
 func (stor *StorageV2) UpdateMetric(ctx context.Context, metric common.Metrics) error {
+	var err error
+
 	switch metric.MType {
 	case common.GaugeMetricName:
-		_, err := stor.dbPool.Exec(ctx, insertValueSQL, metric.ID, metric.MType, *metric.Value)
-		if err != nil {
-			return err
-		}
+		_, err = stor.dbPool.Exec(ctx, insertValueSQL, metric.ID, metric.MType, *metric.Value)
 	case common.CounterMetricName:
-		_, err := stor.dbPool.Exec(ctx, insertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
-		if err != nil {
-			return err
-		}
+		_, err = stor.dbPool.Exec(ctx, insertDeltaSQL, metric.ID, metric.MType, *metric.Delta)
 	default:
-		return NewUnknownMetricTypeError(metric.MType)
+		err = newUnknownMetricTypeError(metric.MType)
 	}
 
-	return nil
+	return err
 }
 
 func (stor *StorageV2) UpdateMetrics(ctx context.Context, metricsList []common.Metrics) error {
@@ -190,13 +192,12 @@ type GaugeMetricsStorage map[string]float64
 type CounterMetricsStorage map[string]int64
 
 type Storage struct {
-	StorageInterface
-
 	gaugeMap   GaugeMetricsStorage
 	counterMap CounterMetricsStorage
 	storageRWM sync.RWMutex
 }
 
+// ForEachMetrics passes through all metrics in database and call handler
 func (stor *Storage) ForEachMetrics(ctx context.Context, handler func(*StorageMetric)) error {
 	stor.storageRWM.RLock()
 	defer stor.storageRWM.RUnlock()
@@ -240,7 +241,7 @@ func (stor *Storage) GetMetric(ctx context.Context, mType string, id string) (*S
 			return storageMetric, nil
 		}
 	default:
-		return nil, NewUnknownMetricTypeError(mType)
+		return nil, newUnknownMetricTypeError(mType)
 	}
 
 	return nil, nil
@@ -256,7 +257,7 @@ func (stor *Storage) UpdateMetric(ctx context.Context, metric common.Metrics) er
 	case common.CounterMetricName:
 		stor.counterMap[metric.ID] += *metric.Delta
 	default:
-		return NewUnknownMetricTypeError(metric.MType)
+		return newUnknownMetricTypeError(metric.MType)
 	}
 
 	return nil
@@ -276,7 +277,7 @@ func (stor *Storage) UpdateMetrics(ctx context.Context, metricList []common.Metr
 		case common.CounterMetricName:
 			counterMap[metric.ID] = *metric.Delta
 		default:
-			return NewUnknownMetricTypeError(metric.MType)
+			return newUnknownMetricTypeError(metric.MType)
 		}
 	}
 
@@ -405,4 +406,38 @@ func InitBackupTicker(stor *Storage, backupFilePath string, backupInterval time.
 	}()
 
 	return stopTicker
+}
+
+type MockStorage struct {
+	StorageInterface
+
+	ForEachMetricsResponse error
+	ForEachMetricsArr      []*StorageMetric
+
+	GetMetricResponse      *StorageMetric
+	GetMetricErrorResponse error
+
+	UpdateMetricResponse error
+
+	UpdateMetricsResponse error
+}
+
+func (s *MockStorage) ForEachMetrics(ctx context.Context, h func(*StorageMetric)) error {
+	for _, s := range s.ForEachMetricsArr {
+		h(s)
+	}
+
+	return s.ForEachMetricsResponse
+}
+
+func (s *MockStorage) GetMetric(ctx context.Context, mType string, id string) (*StorageMetric, error) {
+	return s.GetMetricResponse, s.GetMetricErrorResponse
+}
+
+func (s *MockStorage) UpdateMetric(ctx context.Context, metric common.Metrics) error {
+	return s.UpdateMetricResponse
+}
+
+func (s *MockStorage) UpdateMetrics(ctx context.Context, metricList []common.Metrics) error {
+	return s.UpdateMetricsResponse
 }

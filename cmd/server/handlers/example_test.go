@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
-
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 )
 

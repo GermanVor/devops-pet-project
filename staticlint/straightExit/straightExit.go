@@ -30,6 +30,10 @@ var Analyzer = &analysis.Analyzer{
 		log.Println("straightexit:", "Dir: ", p)
 
 		for _, file := range p.Files {
+			if file == nil {
+				continue
+			}
+
 			log.Println("\t", "package:", file.Name.Name)
 
 			// check if package main

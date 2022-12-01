@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -15,6 +16,18 @@ import (
 	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
 	"github.com/GermanVor/devops-pet-project/internal/common"
 )
+
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
+
+func init() {
+	fmt.Printf("Build version:\t%s\n", buildVersion)
+	fmt.Printf("Build date:\t%s\n", buildDate)
+	fmt.Printf("Build commit:\t%s\n", buildCommit)
+}
 
 var Config = &common.AgentConfig{
 	Address:        "localhost:8080",

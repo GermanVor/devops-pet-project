@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
+	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
 	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
 	"github.com/GermanVor/devops-pet-project/internal/common"
 )

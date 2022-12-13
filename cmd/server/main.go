@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -16,7 +17,11 @@ import (
 	_ "net/http/pprof"
 )
 
-var ppofAddr = flag.String("ppofAddr", "", "addres of ppof server (e.g 'localhost:8585')")
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
 
 var Config = &common.ServerConfig{
 	Address:       "localhost:8080",
@@ -35,15 +40,19 @@ var defaultCompressibleContentTypes = []string{
 }
 
 func initConfig() {
+	fmt.Printf("Build version:\t%s\n", buildVersion)
+	fmt.Printf("Build date:\t%s\n", buildDate)
+	fmt.Printf("Build commit:\t%s\n", buildCommit)
+
 	common.InitServerFlagConfig(Config)
 	flag.Parse()
 	common.InitServerEnvConfig(Config)
-
-	log.Println("Config is", Config)
 }
 
 func main() {
 	initConfig()
+
+	log.Println("Config is", Config)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -89,20 +98,9 @@ func main() {
 		}
 	}
 
+	handlers.InitRouterV1(r, currentStorage)
 	handlers.InitRouter(r, currentStorage, Config.Key)
 
 	log.Println("Server Started: http://" + Config.Address)
-
-	if *ppofAddr != "" {
-		log.Printf("Pprof server started http://%s/debug/pprof/", *ppofAddr)
-
-		go func() {
-			err := http.ListenAndServe(*ppofAddr, nil)
-			if err != nil {
-				log.Println("Pprof server started error", err)
-			}
-		}()
-	}
-
 	log.Fatal(http.ListenAndServe(Config.Address, r))
 }

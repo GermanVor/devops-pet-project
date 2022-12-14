@@ -8,8 +8,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
@@ -59,8 +62,10 @@ func initConfig() {
 
 func main() {
 	initConfig()
-
 	log.Println("Config is", Config)
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -120,6 +125,33 @@ func main() {
 	handlers.InitRouterV1(r, currentStorage)
 	handlers.InitRouter(r, currentStorage, Config.Key, rsaKey)
 
+	baseContext, shutDownRequests := context.WithCancel(context.Background())
+	server := http.Server{
+		Addr:    Config.Address,
+		Handler: r,
+		BaseContext: func(l net.Listener) context.Context {
+			return baseContext
+		},
+	}
+
+	go func() {
+		<-sigs
+		log.Println("Server is shutting down...")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		server.SetKeepAlivesEnabled(false)
+		if err := server.Shutdown(ctx); err != nil {
+			log.Fatalf("Could not gracefully shutdown the server: %v\n", err)
+		}
+		shutDownRequests()
+	}()
+
 	log.Println("Server Started: http://" + Config.Address)
-	log.Fatal(http.ListenAndServe(Config.Address, r))
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("Could not listen on %s: %v\n", Config.Address, err)
+	}
+
+	log.Println("Server finished work")
 }

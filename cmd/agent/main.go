@@ -12,8 +12,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
@@ -148,6 +150,9 @@ func Start(ctx context.Context, endpointURL string, rsaKey *rsa.PublicKey) {
 
 	mux := sync.Mutex{}
 
+	mainWG := sync.WaitGroup{}
+	mainWG.Add(2)
+
 	go func() {
 		for {
 			select {
@@ -176,6 +181,7 @@ func Start(ctx context.Context, endpointURL string, rsaKey *rsa.PublicKey) {
 
 				mux.Unlock()
 			case <-ctx.Done():
+				mainWG.Done()
 				return
 			}
 		}
@@ -197,12 +203,13 @@ func Start(ctx context.Context, endpointURL string, rsaKey *rsa.PublicKey) {
 				SendMetricsButchV2(&metricsCopy, endpointURL, Config.Key)
 
 			case <-ctx.Done():
+				mainWG.Done()
 				return
 			}
 		}
 	}()
 
-	<-ctx.Done()
+	mainWG.Wait()
 }
 
 func initConfig() {
@@ -215,10 +222,17 @@ func initConfig() {
 
 func main() {
 	initConfig()
-
 	log.Println("Agent Config", Config)
 
-	ctx := context.Background()
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		<-sigs
+		cancel()
+	}()
 
 	var rsaKey *rsa.PublicKey
 	if Config.CryptoKey != "" {
@@ -235,4 +249,5 @@ func main() {
 	}
 
 	Start(ctx, "http://"+Config.Address, rsaKey)
+	log.Println("Agent finished work")
 }

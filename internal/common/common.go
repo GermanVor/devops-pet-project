@@ -69,6 +69,8 @@ type AgentConfig struct {
 	PollInterval   time.Duration
 	ReportInterval time.Duration
 
+	CryptoKey string
+
 	Key string
 }
 
@@ -77,6 +79,8 @@ type ServerConfig struct {
 	StoreInterval time.Duration
 	StoreFile     string
 	IsRestore     bool
+
+	CryptoKey string
 
 	Key         string
 	DataBaseDSN string
@@ -105,6 +109,10 @@ func InitAgentEnvConfig(config *AgentConfig) *AgentConfig {
 		config.Key = hashKey
 	}
 
+	if cryptoKey, ok := os.LookupEnv("CRYPTO_KEY"); ok {
+		config.CryptoKey = cryptoKey
+	}
+
 	return config
 }
 
@@ -113,6 +121,7 @@ const (
 	agentPollUsage   = "The time in seconds when Agent collects Metrics."
 	agentReportUsage = "The time in seconds when Agent sent Metrics to the Server."
 	agentKey         = "Static key (for educational purposes) for hash generation"
+	agentCKUsage     = "Asymmetric encryption publick key"
 )
 
 func InitAgentFlagConfig(config *AgentConfig) *AgentConfig {
@@ -138,6 +147,8 @@ func InitAgentFlagConfig(config *AgentConfig) *AgentConfig {
 
 		return err
 	})
+
+	flag.StringVar(&config.CryptoKey, "crypto-key", config.CryptoKey, agentCKUsage)
 
 	return config
 }
@@ -173,16 +184,21 @@ func InitServerEnvConfig(config *ServerConfig) *ServerConfig {
 		config.DataBaseDSN = dataBaseDSN
 	}
 
+	if cryptoKey, ok := os.LookupEnv("CRYPTO_KEY"); ok {
+		config.CryptoKey = cryptoKey
+	}
+
 	return config
 }
 
 const (
-	aUsage = "Address to listen on"
-	fUsage = "The name of the file in which Server will store Metrics (Empty name turn off storing Metrics)"
-	rUsage = "Bool value. `true` - At startup Server will try to load data from `STORE_FILE`. `false` - Server will create new `STORE_FILE` file in startup."
-	iUsage = "The time in seconds after which the current server readings are reset to disk \n (value 0 — makes the recording synchronous)."
-	kUsage = "Static key (for educational purposes) for hash generation"
-	dUsage = "Database address to connect server with (for exemple postgres://zzman:@localhost:5432/postgres)"
+	aUsage  = "Address to listen on"
+	fUsage  = "The name of the file in which Server will store Metrics (Empty name turn off storing Metrics)"
+	rUsage  = "Bool value. `true` - At startup Server will try to load data from `STORE_FILE`. `false` - Server will create new `STORE_FILE` file in startup."
+	iUsage  = "The time in seconds after which the current server readings are reset to disk \n (value 0 — makes the recording synchronous)."
+	kUsage  = "Static key (for educational purposes) for hash generation"
+	dUsage  = "Database address to connect server with (for exemple postgres://zzman:@localhost:5432/postgres)"
+	ckUsage = "Asymmetric encryption private key"
 )
 
 func InitServerFlagConfig(config *ServerConfig) *ServerConfig {
@@ -191,6 +207,7 @@ func InitServerFlagConfig(config *ServerConfig) *ServerConfig {
 	flag.BoolVar(&config.IsRestore, "r", config.IsRestore, rUsage)
 	flag.StringVar(&config.Key, "k", config.Key, kUsage)
 	flag.StringVar(&config.DataBaseDSN, "d", config.DataBaseDSN, dUsage)
+	flag.StringVar(&config.CryptoKey, "crypto-key", config.CryptoKey, ckUsage)
 
 	flag.Func("i", iUsage, func(s string) error {
 		storeInterval, err := time.ParseDuration(s)

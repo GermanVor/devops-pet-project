@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"math/rand"
 	"net/http"
 	"runtime"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
 	"github.com/GermanVor/devops-pet-project/internal/common"
+	"github.com/GermanVor/devops-pet-project/internal/crypto"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/mem"
 )
@@ -80,7 +82,14 @@ func BuildRequest(endpointURL, metricType, metricName, metricValue string) (*htt
 	return req, err
 }
 
-func BuildRequestV2(endpointURL, metricType, metricName, metricValue, key string) (*http.Request, error) {
+func BuildRequestV2(
+	endpointURL,
+	metricType,
+	metricName,
+	metricValue,
+	key string,
+	rsaKey *rsa.PublicKey,
+) (*http.Request, error) {
 	metric := &common.Metrics{
 		ID:    metricName,
 		MType: metricType,
@@ -109,6 +118,10 @@ func BuildRequestV2(endpointURL, metricType, metricName, metricValue, key string
 	metricBytes, err := metric.MarshalJSON()
 	if err != nil {
 		return nil, err
+	}
+
+	if rsaKey != nil {
+		metricBytes = crypto.RSAEncrypt(metricBytes, rsaKey)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/", bytes.NewBuffer(metricBytes))

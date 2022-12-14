@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
@@ -98,8 +102,17 @@ func main() {
 		}
 	}
 
+	var rsaKey *rsa.PrivateKey
+	if Config.CryptoKey != "" {
+		ketData, _ := os.ReadFile(Config.CryptoKey)
+		block, _ := pem.Decode(ketData)
+		rsaKey, _ = x509.ParsePKCS1PrivateKey(block.Bytes)
+
+		log.Println("Server will accept encrypted metrics (/updates/)")
+	}
+
 	handlers.InitRouterV1(r, currentStorage)
-	handlers.InitRouter(r, currentStorage, Config.Key)
+	handlers.InitRouter(r, currentStorage, Config.Key, rsaKey)
 
 	log.Println("Server Started: http://" + Config.Address)
 	log.Fatal(http.ListenAndServe(Config.Address, r))

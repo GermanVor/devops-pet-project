@@ -23,9 +23,16 @@ func main() {
 		switch mType {
 		case "g":
 			value := rand.Float64()
-			req, err = utils.BuildRequestV2("http://localhost:8080", common.GaugeMetricName, "qwertyG", fmt.Sprintf("%v", value), "")
+			req, err = utils.BuildRequestV2(
+				"http://localhost:8080",
+				common.GaugeMetricName,
+				"qwertyG",
+				fmt.Sprintf("%v", value),
+				"",
+				nil,
+			)
 		case "c":
-			req, err = utils.BuildRequestV2("http://localhost:8080", common.CounterMetricName, "qwertyC", "5", "")
+			req, err = utils.BuildRequestV2("http://localhost:8080", common.CounterMetricName, "qwertyC", "5", "", nil)
 		default:
 			log.Println("unknown type")
 			continue

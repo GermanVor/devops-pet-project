@@ -3,11 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -55,10 +59,10 @@ func SendMetricsV1(metricsObj *metrics.RuntimeMetrics, endpointURL string) {
 	})
 }
 
-func SendMetricsV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string) {
+func SendMetricsV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string, rsaKey *rsa.PublicKey) {
 	metrics.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
 		go func() {
-			req, err := utils.BuildRequestV2(endpointURL, metricType, metricName, metricValue, key)
+			req, err := utils.BuildRequestV2(endpointURL, metricType, metricName, metricValue, key, rsaKey)
 			if err != nil {
 				log.Println(err)
 				return
@@ -130,7 +134,7 @@ func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key str
 	resp.Body.Close()
 }
 
-func Start(ctx context.Context, endpointURL, key string) {
+func Start(ctx context.Context, endpointURL, key string, rsaKey *rsa.PublicKey) {
 	pollTicker := time.NewTicker(Config.PollInterval)
 	defer pollTicker.Stop()
 
@@ -187,7 +191,7 @@ func Start(ctx context.Context, endpointURL, key string) {
 				mux.Unlock()
 
 				// SendMetricsV1(&metricsCopy, endpointURL)
-				// SendMetricsV2(&metricsCopy, endpointURL, key)
+				// SendMetricsV2(&metricsCopy, endpointURL, key, rsaKey)
 				SendMetricsButchV2(&metricsCopy, endpointURL, key)
 
 			case <-ctx.Done():
@@ -208,5 +212,19 @@ func main() {
 
 	ctx := context.Background()
 
-	Start(ctx, "http://"+Config.Address, Config.Key)
+	var rsaKey *rsa.PublicKey
+	if Config.CryptoKey != "" {
+		if keyBytes, err := os.ReadFile(Config.CryptoKey); err == nil {
+			block, _ := pem.Decode([]byte(keyBytes))
+			rsaKey, err = x509.ParsePKCS1PublicKey(block.Bytes)
+
+			if err != nil {
+				log.Println(err.Error())
+			}
+
+			log.Println("Agent will Encrypt Metrics (/updates/)")
+		}
+	}
+
+	Start(ctx, "http://"+Config.Address, Config.Key, rsaKey)
 }

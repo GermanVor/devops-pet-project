@@ -2,11 +2,14 @@
 package handlers
 
 import (
+	"crypto/rsa"
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 
 	"github.com/GermanVor/devops-pet-project/internal/common"
+	"github.com/GermanVor/devops-pet-project/internal/crypto"
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 	"github.com/go-chi/chi"
 )
@@ -24,12 +27,31 @@ import (
 //		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 //		Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
 //	}
-func UpdateMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface, key string) {
+func UpdateMetric(
+	w http.ResponseWriter,
+	r *http.Request,
+	stor storage.StorageInterface,
+	key string,
+	rsaKey *rsa.PrivateKey,
+) {
 	metric := &common.Metrics{}
 
-	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	if rsaKey == nil {
+		if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	} else {
+		metricBytes, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if err := json.Unmarshal(crypto.RSADecrypt(metricBytes, rsaKey), metric); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
 
 	if key != "" {
@@ -72,7 +94,11 @@ func UpdateMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageIn
 //		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 //		Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
 //	}
-func UpdateMetrics(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
+func UpdateMetrics(
+	w http.ResponseWriter,
+	r *http.Request,
+	stor storage.StorageInterface,
+) {
 	metricsArr := []common.Metrics{}
 
 	if err := json.NewDecoder(r.Body).Decode(&metricsArr); err != nil {
@@ -92,6 +118,12 @@ func UpdateMetrics(w http.ResponseWriter, r *http.Request, stor storage.StorageI
 func missedMetricNameHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
+
+// func UseQwerty(next http.Handler) http.Handler {
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 		next.ServeHTTP(w, r.WithContext(ctx))
+// 	})
+// }
 
 // GetMetric Handler to get Agent metrics by URL.
 //
@@ -152,13 +184,13 @@ func GetMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageInter
 	w.Write(jsonResp)
 }
 
-func InitRouter(r *chi.Mux, stor storage.StorageInterface, key string) *chi.Mux {
+func InitRouter(r *chi.Mux, stor storage.StorageInterface, key string, rsaKey *rsa.PrivateKey) *chi.Mux {
 	if stor == nil {
 		log.Fatalln("Storage do not created")
 	}
 
 	r.Post("/update/", func(w http.ResponseWriter, r *http.Request) {
-		UpdateMetric(w, r, stor, key)
+		UpdateMetric(w, r, stor, key, rsaKey)
 	})
 
 	r.Post("/updates/", func(w http.ResponseWriter, r *http.Request) {

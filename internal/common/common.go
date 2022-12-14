@@ -3,9 +3,11 @@ package common
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	json "encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -65,39 +67,40 @@ func GetMetricHash(metrics *Metrics, key string) (string, error) {
 }
 
 type AgentConfig struct {
-	Address        string
-	PollInterval   time.Duration
-	ReportInterval time.Duration
+	Address        string `json:"address,omitempty"`
+	PollInterval   string `json:"poll_interval,omitempty"`
+	ReportInterval string `json:"report_interval,omitempty"`
 
-	CryptoKey string
+	CryptoKey string `json:"crypto_key,omitempty"`
 
 	Key string
 }
 
 type ServerConfig struct {
-	Address       string
-	StoreInterval time.Duration
-	StoreFile     string
-	IsRestore     bool
+	Address       string `json:"address,omitempty"`
+	StoreInterval string `json:"store_interval,omitempty"`
+	StoreFile     string `json:"store_file,omitempty"`
+	IsRestore     bool   `json:"restore,omitempty"`
 
-	CryptoKey string
+	CryptoKey string `json:"crypto_key,omitempty"`
 
-	Key         string
-	DataBaseDSN string
+	DataBaseDSN string `json:"database_dsn,omitempty"`
+
+	Key string
 }
 
 func InitAgentEnvConfig(config *AgentConfig) *AgentConfig {
 	godotenv.Load(".env")
 
 	if pollIntervalStr, ok := os.LookupEnv("POLL_INTERVAL"); ok {
-		if pollInterval, err := time.ParseDuration(pollIntervalStr); err == nil {
-			config.PollInterval = pollInterval
+		if _, err := time.ParseDuration(pollIntervalStr); err == nil {
+			config.PollInterval = pollIntervalStr
 		}
 	}
 
 	if reportIntervalStr, ok := os.LookupEnv("REPORT_INTERVAL"); ok {
-		if reportInterval, err := time.ParseDuration(reportIntervalStr); err == nil {
-			config.ReportInterval = reportInterval
+		if _, err := time.ParseDuration(reportIntervalStr); err == nil {
+			config.ReportInterval = reportIntervalStr
 		}
 	}
 
@@ -129,20 +132,20 @@ func InitAgentFlagConfig(config *AgentConfig) *AgentConfig {
 	flag.StringVar(&config.Key, "k", config.Key, agentKey)
 
 	flag.Func("p", agentPollUsage, func(s string) error {
-		pollInterval, err := time.ParseDuration(s)
+		_, err := time.ParseDuration(s)
 
 		if err == nil {
-			config.PollInterval = pollInterval
+			config.PollInterval = s
 		}
 
 		return err
 	})
 
 	flag.Func("r", agentReportUsage, func(s string) error {
-		reportInterval, err := time.ParseDuration(s)
+		_, err := time.ParseDuration(s)
 
 		if err == nil {
-			config.ReportInterval = reportInterval
+			config.ReportInterval = s
 		}
 
 		return err
@@ -167,8 +170,8 @@ func InitServerEnvConfig(config *ServerConfig) *ServerConfig {
 	}
 
 	if storeIntervalStr, ok := os.LookupEnv("STORE_INTERVAL"); ok {
-		if storeInterval, err := time.ParseDuration(storeIntervalStr); err == nil {
-			config.StoreInterval = storeInterval
+		if _, err := time.ParseDuration(storeIntervalStr); err == nil {
+			config.StoreInterval = storeIntervalStr
 		}
 	}
 
@@ -210,14 +213,41 @@ func InitServerFlagConfig(config *ServerConfig) *ServerConfig {
 	flag.StringVar(&config.CryptoKey, "crypto-key", config.CryptoKey, ckUsage)
 
 	flag.Func("i", iUsage, func(s string) error {
-		storeInterval, err := time.ParseDuration(s)
+		_, err := time.ParseDuration(s)
 
 		if err == nil {
-			config.StoreInterval = storeInterval
+			config.StoreInterval = s
 		}
 
 		return err
 	})
+
+	return config
+}
+
+func InitJSONConfig[T AgentConfig | ServerConfig](config *T) *T {
+	configPath := ""
+
+	if path, ok := os.LookupEnv("CONFIG"); ok {
+		configPath = path
+	} else {
+		flag.StringVar(&configPath, "c", configPath, "")
+		flag.StringVar(&configPath, "config", configPath, "")
+	}
+
+	if configPath == "" {
+		return config
+	}
+
+	configFile, err := os.Open(configPath)
+	if err != nil {
+		log.Println("Opening config file", err.Error())
+	}
+
+	jsonParser := json.NewDecoder(configFile)
+	if err = jsonParser.Decode(config); err != nil {
+		log.Println("Parsing config file", err.Error())
+	}
 
 	return config
 }

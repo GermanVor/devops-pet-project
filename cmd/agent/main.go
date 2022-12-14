@@ -35,8 +35,8 @@ func init() {
 
 var Config = &common.AgentConfig{
 	Address:        "localhost:8080",
-	PollInterval:   1 * time.Second,
-	ReportInterval: 2 * time.Second,
+	PollInterval:   "1s",
+	ReportInterval: "2s",
 }
 
 func SendMetricsV1(metricsObj *metrics.RuntimeMetrics, endpointURL string) {
@@ -134,11 +134,13 @@ func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key str
 	resp.Body.Close()
 }
 
-func Start(ctx context.Context, endpointURL, key string, rsaKey *rsa.PublicKey) {
-	pollTicker := time.NewTicker(Config.PollInterval)
+func Start(ctx context.Context, endpointURL string, rsaKey *rsa.PublicKey) {
+	pollInterval, _ := time.ParseDuration(Config.PollInterval)
+	pollTicker := time.NewTicker(pollInterval)
 	defer pollTicker.Stop()
 
-	reportInterval := time.NewTicker(Config.ReportInterval)
+	reportInteral, _ := time.ParseDuration(Config.ReportInterval)
+	reportInterval := time.NewTicker(reportInteral)
 	defer reportInterval.Stop()
 
 	var mPointer *metrics.RuntimeMetrics
@@ -191,8 +193,8 @@ func Start(ctx context.Context, endpointURL, key string, rsaKey *rsa.PublicKey) 
 				mux.Unlock()
 
 				// SendMetricsV1(&metricsCopy, endpointURL)
-				// SendMetricsV2(&metricsCopy, endpointURL, key, rsaKey)
-				SendMetricsButchV2(&metricsCopy, endpointURL, key)
+				// SendMetricsV2(&metricsCopy, endpointURL, Config.Key, rsaKey)
+				SendMetricsButchV2(&metricsCopy, endpointURL, Config.Key)
 
 			case <-ctx.Done():
 				return
@@ -203,10 +205,16 @@ func Start(ctx context.Context, endpointURL, key string, rsaKey *rsa.PublicKey) 
 	<-ctx.Done()
 }
 
-func main() {
+func initConfig() {
+	common.InitJSONConfig(Config)
 	common.InitAgentFlagConfig(Config)
 	flag.Parse()
+
 	common.InitAgentEnvConfig(Config)
+}
+
+func main() {
+	initConfig()
 
 	log.Println("Agent Config", Config)
 
@@ -226,5 +234,5 @@ func main() {
 		}
 	}
 
-	Start(ctx, "http://"+Config.Address, Config.Key, rsaKey)
+	Start(ctx, "http://"+Config.Address, rsaKey)
 }

@@ -1,0 +1,6 @@
+{
+    "address": "localhost:8080",
+    "restore": true,
+    "store_interval": "1s",
+    "database_dsn": ""
+}

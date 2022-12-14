@@ -21,19 +21,6 @@ import (
 	_ "net/http/pprof"
 )
 
-var (
-	buildVersion = "N/A"
-	buildDate    = "N/A"
-	buildCommit  = "N/A"
-)
-
-var Config = &common.ServerConfig{
-	Address:       "localhost:8080",
-	StoreInterval: 300 * time.Second,
-	StoreFile:     "/tmp/devops-metrics-db.json",
-	IsRestore:     true,
-}
-
 var defaultCompressibleContentTypes = []string{
 	"application/javascript",
 	"application/json",
@@ -43,13 +30,30 @@ var defaultCompressibleContentTypes = []string{
 	"text/xml",
 }
 
-func initConfig() {
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
+
+func init() {
 	fmt.Printf("Build version:\t%s\n", buildVersion)
 	fmt.Printf("Build date:\t%s\n", buildDate)
 	fmt.Printf("Build commit:\t%s\n", buildCommit)
+}
 
+var Config = &common.ServerConfig{
+	Address:       "localhost:8080",
+	StoreInterval: "300s",
+	StoreFile:     "/tmp/devops-metrics-db.json",
+	IsRestore:     true,
+}
+
+func initConfig() {
+	common.InitJSONConfig(Config)
 	common.InitServerFlagConfig(Config)
 	flag.Parse()
+
 	common.InitServerEnvConfig(Config)
 }
 
@@ -93,10 +97,12 @@ func main() {
 		currentStorage = stor
 
 		if Config.StoreFile != "" {
-			if Config.StoreInterval == time.Duration(0) {
+			if Config.StoreInterval == "" {
 				currentStorage = storage.WithBackup(stor, Config.StoreFile)
 			} else {
-				stopBackupTicker := storage.InitBackupTicker(stor, Config.StoreFile, Config.StoreInterval)
+				interval, _ := time.ParseDuration(Config.StoreInterval)
+
+				stopBackupTicker := storage.InitBackupTicker(stor, Config.StoreFile, interval)
 				defer stopBackupTicker()
 			}
 		}

@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"flag"
 	"fmt"
 	"log"
@@ -37,8 +35,8 @@ func init() {
 
 var Config = &common.AgentConfig{
 	Address:        "localhost:8080",
-	PollInterval:   "1s",
-	ReportInterval: "2s",
+	PollInterval:   common.Duration{Duration: time.Second},
+	ReportInterval: common.Duration{Duration: 2 * time.Second},
 }
 
 func SendMetricsV1(metricsObj *metrics.RuntimeMetrics, endpointURL string) {
@@ -137,12 +135,10 @@ func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key str
 }
 
 func Start(ctx context.Context, endpointURL string, rsaKey *rsa.PublicKey) {
-	pollInterval, _ := time.ParseDuration(Config.PollInterval)
-	pollTicker := time.NewTicker(pollInterval)
+	pollTicker := time.NewTicker(Config.PollInterval.Duration)
 	defer pollTicker.Stop()
 
-	reportInteral, _ := time.ParseDuration(Config.ReportInterval)
-	reportInterval := time.NewTicker(reportInteral)
+	reportInterval := time.NewTicker(Config.ReportInterval.Duration)
 	defer reportInterval.Stop()
 
 	var mPointer *metrics.RuntimeMetrics
@@ -234,20 +230,10 @@ func main() {
 		cancel()
 	}()
 
-	var rsaKey *rsa.PublicKey
-	if Config.CryptoKey != "" {
-		if keyBytes, err := os.ReadFile(Config.CryptoKey); err == nil {
-			block, _ := pem.Decode([]byte(keyBytes))
-			rsaKey, err = x509.ParsePKCS1PublicKey(block.Bytes)
-
-			if err != nil {
-				log.Println(err.Error())
-			}
-
-			log.Println("Agent will Encrypt Metrics (/updates/)")
-		}
+	if Config.CryptoKey.PublicKey != nil {
+		log.Println("Agent will Encrypt Metrics (/updates/)")
 	}
 
-	Start(ctx, "http://"+Config.Address, rsaKey)
+	Start(ctx, "http://"+Config.Address, Config.CryptoKey.PublicKey)
 	log.Println("Agent finished work")
 }

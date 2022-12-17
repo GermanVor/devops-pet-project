@@ -2,8 +2,11 @@ package common
 
 import (
 	"crypto/hmac"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	json "encoding/json"
+	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
@@ -66,23 +69,126 @@ func GetMetricHash(metrics *Metrics, key string) (string, error) {
 	return hash, nil
 }
 
-type AgentConfig struct {
-	Address        string `json:"address,omitempty"`
-	PollInterval   string `json:"poll_interval,omitempty"`
-	ReportInterval string `json:"report_interval,omitempty"`
+func readPublicCryptoKey(keyFilePath string) (*rsa.PublicKey, error) {
+	keyBytes, err := os.ReadFile(keyFilePath)
+	if err != nil {
+		return nil, err
+	}
 
-	CryptoKey string `json:"crypto_key,omitempty"`
+	block, _ := pem.Decode([]byte(keyBytes))
+	rsaKey, err := x509.ParsePKCS1PublicKey(block.Bytes)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return rsaKey, nil
+}
+
+type Duration struct {
+	time.Duration
+}
+
+func (d *Duration) UnmarshalJSON(b []byte) error {
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	switch value := v.(type) {
+	case string:
+		var err error
+		d.Duration, err = time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	default:
+		return errors.New("invalid duration")
+	}
+}
+
+type PublicKey struct {
+	*rsa.PublicKey
+}
+
+func (k *PublicKey) UnmarshalJSON(b []byte) error {
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	switch value := v.(type) {
+	case string:
+		key, err := readPublicCryptoKey(value)
+		if err == nil {
+			k.PublicKey = key
+		} else {
+			log.Println("Can not read Crypto Key", err)
+		}
+
+		return nil
+	default:
+		return errors.New("invalid duration")
+	}
+}
+
+type AgentConfig struct {
+	Address        string   `json:"address,omitempty"`
+	PollInterval   Duration `json:"poll_interval,omitempty"`
+	ReportInterval Duration `json:"report_interval,omitempty"`
+
+	CryptoKey PublicKey `json:"crypto_key,omitempty"`
 
 	Key string
 }
 
-type ServerConfig struct {
-	Address       string `json:"address,omitempty"`
-	StoreInterval string `json:"store_interval,omitempty"`
-	StoreFile     string `json:"store_file,omitempty"`
-	IsRestore     bool   `json:"restore,omitempty"`
+func readPrivateCryptoKey(keyFilePath string) (*rsa.PrivateKey, error) {
+	ketData, err := os.ReadFile(keyFilePath)
+	if err != nil {
+		return nil, err
+	}
 
-	CryptoKey string `json:"crypto_key,omitempty"`
+	block, _ := pem.Decode(ketData)
+
+	rsaKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsaKey, nil
+}
+
+type PrivateKey struct {
+	*rsa.PrivateKey
+}
+
+func (k *PrivateKey) UnmarshalJSON(b []byte) error {
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	switch value := v.(type) {
+	case string:
+		key, err := readPrivateCryptoKey(value)
+		if err == nil {
+			k.PrivateKey = key
+		} else {
+			log.Println("Can not read Crypto Key", err)
+		}
+
+		return nil
+	default:
+		return errors.New("invalid duration")
+	}
+}
+
+type ServerConfig struct {
+	Address       string   `json:"address,omitempty"`
+	StoreInterval Duration `json:"store_interval,omitempty"`
+	StoreFile     string   `json:"store_file,omitempty"`
+	IsRestore     bool     `json:"restore,omitempty"`
+
+	CryptoKey PrivateKey `json:"crypto_key,omitempty"`
 
 	DataBaseDSN string `json:"database_dsn,omitempty"`
 
@@ -93,14 +199,14 @@ func InitAgentEnvConfig(config *AgentConfig) *AgentConfig {
 	godotenv.Load(".env")
 
 	if pollIntervalStr, ok := os.LookupEnv("POLL_INTERVAL"); ok {
-		if _, err := time.ParseDuration(pollIntervalStr); err == nil {
-			config.PollInterval = pollIntervalStr
+		if pollInterval, err := time.ParseDuration(pollIntervalStr); err == nil {
+			config.PollInterval.Duration = pollInterval
 		}
 	}
 
 	if reportIntervalStr, ok := os.LookupEnv("REPORT_INTERVAL"); ok {
-		if _, err := time.ParseDuration(reportIntervalStr); err == nil {
-			config.ReportInterval = reportIntervalStr
+		if reportInterval, err := time.ParseDuration(reportIntervalStr); err == nil {
+			config.ReportInterval.Duration = reportInterval
 		}
 	}
 
@@ -112,8 +218,11 @@ func InitAgentEnvConfig(config *AgentConfig) *AgentConfig {
 		config.Key = hashKey
 	}
 
-	if cryptoKey, ok := os.LookupEnv("CRYPTO_KEY"); ok {
-		config.CryptoKey = cryptoKey
+	if cryptoKeyPath, ok := os.LookupEnv("CRYPTO_KEY"); ok {
+		key, err := readPublicCryptoKey(cryptoKeyPath)
+		if err == nil {
+			config.CryptoKey = PublicKey{key}
+		}
 	}
 
 	return config
@@ -132,26 +241,38 @@ func InitAgentFlagConfig(config *AgentConfig) *AgentConfig {
 	flag.StringVar(&config.Key, "k", config.Key, agentKey)
 
 	flag.Func("p", agentPollUsage, func(s string) error {
-		_, err := time.ParseDuration(s)
+		pollInterval, err := time.ParseDuration(s)
 
 		if err == nil {
-			config.PollInterval = s
+			config.PollInterval.Duration = pollInterval
 		}
 
 		return err
 	})
 
 	flag.Func("r", agentReportUsage, func(s string) error {
-		_, err := time.ParseDuration(s)
+		reportInterval, err := time.ParseDuration(s)
 
 		if err == nil {
-			config.ReportInterval = s
+			config.ReportInterval.Duration = reportInterval
 		}
 
 		return err
 	})
 
-	flag.StringVar(&config.CryptoKey, "crypto-key", config.CryptoKey, agentCKUsage)
+	flag.Func("crypto-key", agentCKUsage, func(cryptoKeyPath string) error {
+		if cryptoKeyPath == "" {
+			return nil
+		}
+
+		key, err := readPublicCryptoKey(cryptoKeyPath)
+		if err != nil {
+			return err
+		}
+
+		config.CryptoKey = PublicKey{key}
+		return nil
+	})
 
 	return config
 }
@@ -170,8 +291,8 @@ func InitServerEnvConfig(config *ServerConfig) *ServerConfig {
 	}
 
 	if storeIntervalStr, ok := os.LookupEnv("STORE_INTERVAL"); ok {
-		if _, err := time.ParseDuration(storeIntervalStr); err == nil {
-			config.StoreInterval = storeIntervalStr
+		if storeInterval, err := time.ParseDuration(storeIntervalStr); err == nil {
+			config.StoreInterval = Duration{storeInterval}
 		}
 	}
 
@@ -187,8 +308,11 @@ func InitServerEnvConfig(config *ServerConfig) *ServerConfig {
 		config.DataBaseDSN = dataBaseDSN
 	}
 
-	if cryptoKey, ok := os.LookupEnv("CRYPTO_KEY"); ok {
-		config.CryptoKey = cryptoKey
+	if cryptoKeyPath, ok := os.LookupEnv("CRYPTO_KEY"); ok {
+		key, err := readPrivateCryptoKey(cryptoKeyPath)
+		if err == nil {
+			config.CryptoKey = PrivateKey{key}
+		}
 	}
 
 	return config
@@ -210,13 +334,26 @@ func InitServerFlagConfig(config *ServerConfig) *ServerConfig {
 	flag.BoolVar(&config.IsRestore, "r", config.IsRestore, rUsage)
 	flag.StringVar(&config.Key, "k", config.Key, kUsage)
 	flag.StringVar(&config.DataBaseDSN, "d", config.DataBaseDSN, dUsage)
-	flag.StringVar(&config.CryptoKey, "crypto-key", config.CryptoKey, ckUsage)
+
+	flag.Func("crypto-key", agentCKUsage, func(cryptoKeyPath string) error {
+		if cryptoKeyPath == "" {
+			return nil
+		}
+
+		key, err := readPrivateCryptoKey(cryptoKeyPath)
+		if err != nil {
+			return err
+		}
+
+		config.CryptoKey = PrivateKey{key}
+		return nil
+	})
 
 	flag.Func("i", iUsage, func(s string) error {
-		_, err := time.ParseDuration(s)
+		storeInterval, err := time.ParseDuration(s)
 
 		if err == nil {
-			config.StoreInterval = s
+			config.StoreInterval.Duration = storeInterval
 		}
 
 		return err

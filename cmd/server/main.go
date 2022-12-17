@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"flag"
 	"fmt"
 	"log"
@@ -47,7 +44,7 @@ func init() {
 
 var Config = &common.ServerConfig{
 	Address:       "localhost:8080",
-	StoreInterval: "300s",
+	StoreInterval: common.Duration{Duration: 300 * time.Second},
 	StoreFile:     "/tmp/devops-metrics-db.json",
 	IsRestore:     true,
 }
@@ -102,28 +99,21 @@ func main() {
 		currentStorage = stor
 
 		if Config.StoreFile != "" {
-			if Config.StoreInterval == "" {
+			if Config.StoreInterval.Duration == time.Duration(0) {
 				currentStorage = storage.WithBackup(stor, Config.StoreFile)
 			} else {
-				interval, _ := time.ParseDuration(Config.StoreInterval)
-
-				stopBackupTicker := storage.InitBackupTicker(stor, Config.StoreFile, interval)
+				stopBackupTicker := storage.InitBackupTicker(stor, Config.StoreFile, Config.StoreInterval.Duration)
 				defer stopBackupTicker()
 			}
 		}
 	}
 
-	var rsaKey *rsa.PrivateKey
-	if Config.CryptoKey != "" {
-		ketData, _ := os.ReadFile(Config.CryptoKey)
-		block, _ := pem.Decode(ketData)
-		rsaKey, _ = x509.ParsePKCS1PrivateKey(block.Bytes)
-
+	if Config.CryptoKey.PrivateKey != nil {
 		log.Println("Server will accept encrypted metrics (/updates/)")
 	}
 
 	handlers.InitRouterV1(r, currentStorage)
-	handlers.InitRouter(r, currentStorage, Config.Key, rsaKey)
+	handlers.InitRouter(r, currentStorage, Config.Key, Config.CryptoKey.PrivateKey)
 
 	baseContext, shutDownRequests := context.WithCancel(context.Background())
 	server := http.Server{

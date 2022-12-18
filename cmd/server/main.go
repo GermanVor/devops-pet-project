@@ -68,8 +68,15 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Compress(5, defaultCompressibleContentTypes...))
 
-	var currentStorage storage.StorageInterface
+	if Config.CryptoKey.PrivateKey != nil {
+		log.Println("Server will accept encrypted metrics (/updates/)")
 
+		r.Use(handlers.MiddlewareEncryptBodyData(Config.CryptoKey.PrivateKey))
+	}
+
+	r.Use(handlers.MiddlewareDecompressGzip)
+
+	var currentStorage storage.StorageInterface
 	if Config.DataBaseDSN != "" {
 		dbContext := context.Background()
 		sqlStorage, err := storage.InitV2(dbContext, Config.DataBaseDSN)
@@ -108,12 +115,8 @@ func main() {
 		}
 	}
 
-	if Config.CryptoKey.PrivateKey != nil {
-		log.Println("Server will accept encrypted metrics (/updates/)")
-	}
-
 	handlers.InitRouterV1(r, currentStorage)
-	handlers.InitRouter(r, currentStorage, Config.Key, Config.CryptoKey.PrivateKey)
+	handlers.InitRouter(r, currentStorage, Config.Key)
 
 	baseContext, shutDownRequests := context.WithCancel(context.Background())
 	server := http.Server{

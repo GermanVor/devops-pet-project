@@ -11,7 +11,7 @@ func ExampleUpdateMetric() {
 	storMock, _ := storage.Init(nil)
 
 	http.HandleFunc("/update/{mType}/{id}/{metricValue}", func(w http.ResponseWriter, r *http.Request) {
-		handlers.UpdateMetric(w, r, storMock, "", nil)
+		handlers.UpdateMetric(w, r, storMock, "")
 	})
 }
 

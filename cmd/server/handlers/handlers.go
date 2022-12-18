@@ -2,6 +2,8 @@
 package handlers
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/rsa"
 	"encoding/json"
 	"io/ioutil"
@@ -32,26 +34,12 @@ func UpdateMetric(
 	r *http.Request,
 	stor storage.StorageInterface,
 	key string,
-	rsaKey *rsa.PrivateKey,
 ) {
 	metric := &common.Metrics{}
 
-	if rsaKey == nil {
-		if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-	} else {
-		metricBytes, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if err := json.Unmarshal(crypto.RSADecrypt(metricBytes, rsaKey), metric); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	if key != "" {
@@ -184,13 +172,69 @@ func GetMetric(w http.ResponseWriter, r *http.Request, stor storage.StorageInter
 	w.Write(jsonResp)
 }
 
-func InitRouter(r *chi.Mux, stor storage.StorageInterface, key string, rsaKey *rsa.PrivateKey) *chi.Mux {
+func MiddlewareDecompressGzip(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Content-Encoding") == "gzip" {
+			bodyBytes, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			var bb []byte
+
+			gz, err := gzip.NewReader(ioutil.NopCloser(bytes.NewBuffer(bodyBytes)))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			defer gz.Close()
+
+			bb, err = ioutil.ReadAll(gz)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			r.ContentLength = int64(len(bb))
+			r.Body = ioutil.NopCloser(bytes.NewReader(bb))
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func MiddlewareEncryptBodyData(rsaKey *rsa.PrivateKey) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			metricBytes, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			defer r.Body.Close()
+
+			decryptedMetricBytes, err := crypto.RSADecrypt(metricBytes, rsaKey)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			
+			r.ContentLength = int64(len(decryptedMetricBytes))
+			r.Body = ioutil.NopCloser(bytes.NewReader(decryptedMetricBytes))
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func InitRouter(r *chi.Mux, stor storage.StorageInterface, key string) *chi.Mux {
 	if stor == nil {
 		log.Fatalln("Storage do not created")
 	}
 
 	r.Post("/update/", func(w http.ResponseWriter, r *http.Request) {
-		UpdateMetric(w, r, stor, key, rsaKey)
+		UpdateMetric(w, r, stor, key)
 	})
 
 	r.Post("/updates/", func(w http.ResponseWriter, r *http.Request) {

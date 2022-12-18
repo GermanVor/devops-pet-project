@@ -121,7 +121,7 @@ func BuildRequestV2(
 	}
 
 	if rsaKey != nil {
-		metricBytes = crypto.RSAEncrypt(metricBytes, rsaKey)
+		metricBytes, _ = crypto.RSAEncrypt(metricBytes, rsaKey)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, endpointURL+"/update/", bytes.NewBuffer(metricBytes))

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/rsa"
 	"encoding/json"
@@ -19,6 +20,7 @@ import (
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
 	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
 	"github.com/GermanVor/devops-pet-project/internal/common"
+	"github.com/GermanVor/devops-pet-project/internal/crypto"
 )
 
 var (
@@ -79,7 +81,7 @@ func SendMetricsV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string, 
 	})
 }
 
-func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string) {
+func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string, rsaKey *rsa.PublicKey) {
 	metricsArr := []common.Metrics{}
 
 	metrics.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
@@ -119,11 +121,35 @@ func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key str
 		return
 	}
 
+	if rsaKey != nil {
+		var buf bytes.Buffer
+		g := gzip.NewWriter(&buf)
+		if _, err = g.Write(metricsBytes); err != nil {
+			log.Println(err)
+			return
+		}
+		if err = g.Close(); err != nil {
+			log.Println(err)
+			return
+		}
+
+		metricsBytes, err = crypto.RSAEncrypt(buf.Bytes(), rsaKey)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+	}
+
 	req, err := http.NewRequest(http.MethodPost, endpointURL+"/updates/", bytes.NewBuffer(metricsBytes))
 	if err != nil {
 		return
 	}
-	req.Header.Add("Content-Type", "application/json")
+
+	req.Header.Set("Content-Type", "application/json")
+
+	if rsaKey != nil {
+		req.Header.Set("Content-Encoding", "gzip")
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -196,7 +222,7 @@ func Start(ctx context.Context, endpointURL string, rsaKey *rsa.PublicKey) {
 
 				// SendMetricsV1(&metricsCopy, endpointURL)
 				// SendMetricsV2(&metricsCopy, endpointURL, Config.Key, rsaKey)
-				SendMetricsButchV2(&metricsCopy, endpointURL, Config.Key)
+				SendMetricsButchV2(&metricsCopy, endpointURL, Config.Key, rsaKey)
 
 			case <-ctx.Done():
 				mainWG.Done()

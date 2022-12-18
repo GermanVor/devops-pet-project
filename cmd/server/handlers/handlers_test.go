@@ -27,7 +27,7 @@ func createTestEnvironment(key string) (*storage.Storage, string, func()) {
 
 	r := chi.NewRouter()
 	handlers.InitRouterV1(r, currentStorage)
-	handlers.InitRouter(r, currentStorage, key, nil)
+	handlers.InitRouter(r, currentStorage, key)
 	ts := httptest.NewServer(r)
 
 	destructor := func() {

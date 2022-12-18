@@ -7,18 +7,16 @@ import (
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 )
 
-func ExampleUpdateMetric() {
+func ExampleStorageWrapper_UpdateMetric() {
 	storMock, _ := storage.Init(nil)
+	s := handlers.InitStorageWrapper(storMock, "")
 
-	http.HandleFunc("/update/{mType}/{id}/{metricValue}", func(w http.ResponseWriter, r *http.Request) {
-		handlers.UpdateMetric(w, r, storMock, "")
-	})
+	http.HandleFunc("/update/{mType}/{id}/{metricValue}", s.UpdateMetric)
 }
 
-func ExampleGetMetric() {
+func ExampleStorageWrapper_GetMetric() {
 	storMock, _ := storage.Init(nil)
+	s := handlers.InitStorageWrapper(storMock, "")
 
-	http.HandleFunc("/update/{mType}/{id}/{metricValue}", func(w http.ResponseWriter, r *http.Request) {
-		handlers.GetMetric(w, r, storMock, "")
-	})
+	http.HandleFunc("/update/{mType}/{id}/{metricValue}", s.GetMetric)
 }

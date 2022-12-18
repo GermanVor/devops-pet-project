@@ -115,8 +115,27 @@ func main() {
 		}
 	}
 
-	handlers.InitRouterV1(r, currentStorage)
-	handlers.InitRouter(r, currentStorage, Config.Key)
+	s := handlers.InitStorageWrapper(currentStorage, Config.Key)
+
+	r.Route("/update", func(r chi.Router) {
+		r.Post("/{mType}/{id}/{metricValue}", s.UpdateMetricV1)
+
+		r.Post("/*", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotImplemented)
+		})
+		r.Post("/gauge/", handlers.MissedMetricNameHandlerFunc)
+		r.Post("/counter/", handlers.MissedMetricNameHandlerFunc)
+	})
+
+	r.Get("/value/{mType}/{id}", s.GetMetricV1)
+
+	r.Get("/", s.GetAllMetrics)
+	
+	r.Post("/update/", s.UpdateMetric)
+
+	r.Post("/updates/", s.UpdateMetrics)
+
+	r.Post("/value/", s.GetMetric)
 
 	baseContext, shutDownRequests := context.WithCancel(context.Background())
 	server := http.Server{

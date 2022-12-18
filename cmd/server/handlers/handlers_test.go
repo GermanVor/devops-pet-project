@@ -26,8 +26,28 @@ func createTestEnvironment(key string) (*storage.Storage, string, func()) {
 	currentStorage, _ := storage.Init(nil)
 
 	r := chi.NewRouter()
-	handlers.InitRouterV1(r, currentStorage)
-	handlers.InitRouter(r, currentStorage, key)
+	s := handlers.InitStorageWrapper(currentStorage, key)
+
+	r.Route("/update", func(r chi.Router) {
+		r.Post("/{mType}/{id}/{metricValue}", s.UpdateMetricV1)
+
+		r.Post("/*", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotImplemented)
+		})
+		r.Post("/gauge/", handlers.MissedMetricNameHandlerFunc)
+		r.Post("/counter/", handlers.MissedMetricNameHandlerFunc)
+	})
+
+	r.Get("/value/{mType}/{id}", s.GetMetricV1)
+
+	r.Get("/", s.GetAllMetrics)
+
+	r.Post("/update/", s.UpdateMetric)
+
+	r.Post("/updates/", s.UpdateMetrics)
+
+	r.Post("/value/", s.GetMetric)
+
 	ts := httptest.NewServer(r)
 
 	destructor := func() {

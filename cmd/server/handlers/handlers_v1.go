@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,7 +15,7 @@ import (
 //
 // URL view: /update/{mType}/{id}/{metricValue} where
 // mType - (gauge|counter), id - Metric Id, metricValue - (float64|int64)
-func UpdateMetricV1(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
+func (s *StorageWrapper) UpdateMetricV1(w http.ResponseWriter, r *http.Request) {
 	metric := common.Metrics{
 		MType: chi.URLParam(r, "mType"),
 		ID:    chi.URLParam(r, "id"),
@@ -42,7 +41,7 @@ func UpdateMetricV1(w http.ResponseWriter, r *http.Request, stor storage.Storage
 		return
 	}
 
-	err := stor.UpdateMetric(r.Context(), metric)
+	err := s.stor.UpdateMetric(r.Context(), metric)
 
 	if err == nil {
 		w.Header().Add("Content-Type", "application/json")
@@ -58,7 +57,7 @@ func UpdateMetricV1(w http.ResponseWriter, r *http.Request, stor storage.Storage
 // mType - (gauge|counter), id - Metric Id.
 //
 // Response is Metric Value as String.
-func GetMetricV1(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
+func (s *StorageWrapper) GetMetricV1(w http.ResponseWriter, r *http.Request) {
 	mType := chi.URLParam(r, "mType")
 	id := chi.URLParam(r, "id")
 
@@ -70,7 +69,7 @@ func GetMetricV1(w http.ResponseWriter, r *http.Request, stor storage.StorageInt
 		return
 	}
 
-	metric, err := stor.GetMetric(r.Context(), mType, id)
+	metric, err := s.stor.GetMetric(r.Context(), mType, id)
 
 	if err == nil {
 		if metric != nil {
@@ -100,10 +99,10 @@ func GetMetricV1(w http.ResponseWriter, r *http.Request, stor storage.StorageInt
 //			...
 //		</ul>
 //	</div>
-func GetAllMetrics(w http.ResponseWriter, r *http.Request, stor storage.StorageInterface) {
+func (s *StorageWrapper) GetAllMetrics(w http.ResponseWriter, r *http.Request) {
 	list := make([]string, 0)
 
-	err := stor.ForEachMetrics(r.Context(), func(sm *storage.StorageMetric) {
+	err := s.stor.ForEachMetrics(r.Context(), func(sm *storage.StorageMetric) {
 		item := ""
 
 		switch sm.MType {
@@ -122,32 +121,4 @@ func GetAllMetrics(w http.ResponseWriter, r *http.Request, stor storage.StorageI
 		w.Header().Add("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(w, "<div><ul>%s</ul></div>", strings.Join(list, ""))
 	}
-}
-
-func InitRouterV1(r *chi.Mux, stor storage.StorageInterface) *chi.Mux {
-	if stor == nil {
-		log.Fatalln("Storage do not created")
-	}
-
-	r.Route("/update", func(r chi.Router) {
-		r.Post("/{mType}/{id}/{metricValue}", func(w http.ResponseWriter, r *http.Request) {
-			UpdateMetricV1(w, r, stor)
-		})
-
-		r.Post("/*", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotImplemented)
-		})
-		r.Post("/gauge/", missedMetricNameHandlerFunc)
-		r.Post("/counter/", missedMetricNameHandlerFunc)
-	})
-
-	r.Get("/value/{mType}/{id}", func(w http.ResponseWriter, r *http.Request) {
-		GetMetricV1(w, r, stor)
-	})
-
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		GetAllMetrics(w, r, stor)
-	})
-
-	return r
 }

@@ -20,6 +20,7 @@ func BenchmarkGetAllMetrics(b *testing.B) {
 			{ID: "qwe5", MType: common.GaugeMetricName, Value: 1},
 		},
 	}
+	s := handlers.InitStorageWrapper(stor, "")
 
 	req, err := http.NewRequest("GET", "/get-metrics", nil)
 	if err != nil {
@@ -27,9 +28,7 @@ func BenchmarkGetAllMetrics(b *testing.B) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handlers.GetAllMetrics(w, r, stor)
-	})
+	handler := http.HandlerFunc(s.GetAllMetrics)
 
 	handler.ServeHTTP(rr, req)
 }

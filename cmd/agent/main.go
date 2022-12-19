@@ -2,19 +2,25 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
 	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
 	"github.com/GermanVor/devops-pet-project/internal/common"
+	"github.com/GermanVor/devops-pet-project/internal/crypto"
 )
 
 var (
@@ -31,8 +37,8 @@ func init() {
 
 var Config = &common.AgentConfig{
 	Address:        "localhost:8080",
-	PollInterval:   1 * time.Second,
-	ReportInterval: 2 * time.Second,
+	PollInterval:   common.Duration{Duration: time.Second},
+	ReportInterval: common.Duration{Duration: 2 * time.Second},
 }
 
 func SendMetricsV1(metricsObj *metrics.RuntimeMetrics, endpointURL string) {
@@ -55,10 +61,10 @@ func SendMetricsV1(metricsObj *metrics.RuntimeMetrics, endpointURL string) {
 	})
 }
 
-func SendMetricsV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string) {
+func SendMetricsV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string, rsaKey *rsa.PublicKey) {
 	metrics.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
 		go func() {
-			req, err := utils.BuildRequestV2(endpointURL, metricType, metricName, metricValue, key)
+			req, err := utils.BuildRequestV2(endpointURL, metricType, metricName, metricValue, key, rsaKey)
 			if err != nil {
 				log.Println(err)
 				return
@@ -75,7 +81,7 @@ func SendMetricsV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string) 
 	})
 }
 
-func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string) {
+func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string, rsaKey *rsa.PublicKey) {
 	metricsArr := []common.Metrics{}
 
 	metrics.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
@@ -115,11 +121,35 @@ func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key str
 		return
 	}
 
+	if rsaKey != nil {
+		var buf bytes.Buffer
+		g := gzip.NewWriter(&buf)
+		if _, err = g.Write(metricsBytes); err != nil {
+			log.Println(err)
+			return
+		}
+		if err = g.Close(); err != nil {
+			log.Println(err)
+			return
+		}
+
+		metricsBytes, err = crypto.RSAEncrypt(buf.Bytes(), rsaKey)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+	}
+
 	req, err := http.NewRequest(http.MethodPost, endpointURL+"/updates/", bytes.NewBuffer(metricsBytes))
 	if err != nil {
 		return
 	}
-	req.Header.Add("Content-Type", "application/json")
+
+	req.Header.Set("Content-Type", "application/json")
+
+	if rsaKey != nil {
+		req.Header.Set("Content-Encoding", "gzip")
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -130,17 +160,20 @@ func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key str
 	resp.Body.Close()
 }
 
-func Start(ctx context.Context, endpointURL, key string) {
-	pollTicker := time.NewTicker(Config.PollInterval)
+func Start(ctx context.Context, endpointURL string, rsaKey *rsa.PublicKey) {
+	pollTicker := time.NewTicker(Config.PollInterval.Duration)
 	defer pollTicker.Stop()
 
-	reportInterval := time.NewTicker(Config.ReportInterval)
+	reportInterval := time.NewTicker(Config.ReportInterval.Duration)
 	defer reportInterval.Stop()
 
 	var mPointer *metrics.RuntimeMetrics
 	pollCount := metrics.Counter(0)
 
 	mux := sync.Mutex{}
+
+	mainWG := sync.WaitGroup{}
+	mainWG.Add(2)
 
 	go func() {
 		for {
@@ -170,6 +203,7 @@ func Start(ctx context.Context, endpointURL, key string) {
 
 				mux.Unlock()
 			case <-ctx.Done():
+				mainWG.Done()
 				return
 			}
 		}
@@ -187,26 +221,45 @@ func Start(ctx context.Context, endpointURL, key string) {
 				mux.Unlock()
 
 				// SendMetricsV1(&metricsCopy, endpointURL)
-				// SendMetricsV2(&metricsCopy, endpointURL, key)
-				SendMetricsButchV2(&metricsCopy, endpointURL, key)
+				// SendMetricsV2(&metricsCopy, endpointURL, Config.Key, rsaKey)
+				SendMetricsButchV2(&metricsCopy, endpointURL, Config.Key, rsaKey)
 
 			case <-ctx.Done():
+				mainWG.Done()
 				return
 			}
 		}
 	}()
 
-	<-ctx.Done()
+	mainWG.Wait()
+}
+
+func initConfig() {
+	common.InitJSONConfig(Config)
+	common.InitAgentFlagConfig(Config)
+	flag.Parse()
+
+	common.InitAgentEnvConfig(Config)
 }
 
 func main() {
-	common.InitAgentFlagConfig(Config)
-	flag.Parse()
-	common.InitAgentEnvConfig(Config)
-
+	initConfig()
 	log.Println("Agent Config", Config)
 
-	ctx := context.Background()
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	Start(ctx, "http://"+Config.Address, Config.Key)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		<-sigs
+		cancel()
+	}()
+
+	if Config.CryptoKey.PublicKey != nil {
+		log.Println("Agent will Encrypt Metrics (/updates/)")
+	}
+
+	Start(ctx, "http://"+Config.Address, Config.CryptoKey.PublicKey)
+	log.Println("Agent finished work")
 }

@@ -26,7 +26,7 @@ type StorageInterface interface {
 	ForEachMetrics(context.Context, func(*StorageMetric)) error
 	GetMetric(ctx context.Context, mType string, id string) (*StorageMetric, error)
 	UpdateMetric(ctx context.Context, metric common.Metrics) error
-	UpdateMetrics(ctx context.Context, metricList []common.Metrics) error
+	UpdateMetrics(ctx context.Context, metricsList []common.Metrics) error
 }
 
 type StorageV2 struct {
@@ -263,14 +263,14 @@ func (stor *Storage) UpdateMetric(ctx context.Context, metric common.Metrics) er
 	return nil
 }
 
-func (stor *Storage) UpdateMetrics(ctx context.Context, metricList []common.Metrics) error {
+func (stor *Storage) UpdateMetrics(ctx context.Context, metricsList []common.Metrics) error {
 	stor.storageRWM.Lock()
 	defer stor.storageRWM.Unlock()
 
 	gaugeMap := make(GaugeMetricsStorage)
 	counterMap := make(CounterMetricsStorage)
 
-	for _, metric := range metricList {
+	for _, metric := range metricsList {
 		switch metric.MType {
 		case common.GaugeMetricName:
 			gaugeMap[metric.ID] = *metric.Value
@@ -438,6 +438,6 @@ func (s *MockStorage) UpdateMetric(ctx context.Context, metric common.Metrics) e
 	return s.UpdateMetricResponse
 }
 
-func (s *MockStorage) UpdateMetrics(ctx context.Context, metricList []common.Metrics) error {
+func (s *MockStorage) UpdateMetrics(ctx context.Context, metricsList []common.Metrics) error {
 	return s.UpdateMetricsResponse
 }

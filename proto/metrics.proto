@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package metrics;
+
+option go_package = "metrics/proto";
+
+// TO GENERATE metrics.go
+// protoc --go_out=. --go_opt=paths=source_relative \
+//  --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+//  proto/demo.proto
+
+message Metric {
+    string id = 1;
+    string type = 2;
+    sint64 delta = 3; // omitempty
+    double value = 4; // omitempty
+    string hash = 5; // omitempty
+}
+
+message Error {
+    sint32 code = 1;
+    string message = 2;
+}
+
+service Metrics {
+    rpc AddMetric(AddMetricRequest) returns (AddMetricResponse);
+    rpc GetMetric(GetMetricRequest) returns (GetMetricResponse);
+
+    rpc AddMetrics(AddMetricsRequest) returns (AddMetricsResponse);
+    rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+}
+
+
+message AddMetricRequest {
+    Metric metric = 1;
+}
+
+message AddMetricResponse {
+    Error error = 1; // omitempty
+}
+
+
+message GetMetricRequest {
+    string id = 1;
+    string type = 2;
+}
+
+message GetMetricResponse {
+    Metric metric = 1;
+    Error error = 2; // omitempty
+}
+
+
+message AddMetricsRequest {
+    repeated Metric metrics = 1;
+}
+
+message AddMetricsResponse {
+    Error error = 1; // omitempty
+}
+
+
+message GetMetricsRequest {
+}
+
+message GetMetricsResponse {
+    repeated Metric metrics = 1;
+    Error error = 2; // omitempty
+}

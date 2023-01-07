@@ -68,8 +68,18 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Compress(5, defaultCompressibleContentTypes...))
 
+	if Config.TrustedSubnet != "" {
+		log.Printf(
+			"Server accepts metrics only with %s equal %s\n",
+			handlers.TrustedSubnetHeader,
+			Config.TrustedSubnet,
+		)
+
+		r.Use(handlers.MiddlewareTrustedSubnet(Config.TrustedSubnet))
+	}
+
 	if Config.CryptoKey.PrivateKey != nil {
-		log.Println("Server will accept encrypted metrics (/updates/)")
+		log.Println("Server accepts encrypted metrics (/updates/)")
 
 		r.Use(handlers.MiddlewareEncryptBodyData(Config.CryptoKey.PrivateKey))
 	}
@@ -130,7 +140,7 @@ func main() {
 	r.Get("/value/{mType}/{id}", s.GetMetricV1)
 
 	r.Get("/", s.GetAllMetrics)
-	
+
 	r.Post("/update/", s.UpdateMetric)
 
 	r.Post("/updates/", s.UpdateMetrics)

@@ -193,6 +193,8 @@ type ServerConfig struct {
 	DataBaseDSN string `json:"database_dsn,omitempty"`
 
 	Key string
+
+	TrustedSubnet string `json:"trusted_subnet,omitempty"`
 }
 
 func InitAgentEnvConfig(config *AgentConfig) *AgentConfig {
@@ -315,6 +317,10 @@ func InitServerEnvConfig(config *ServerConfig) *ServerConfig {
 		}
 	}
 
+	if trustedSubnet, ok := os.LookupEnv("TRUSTED_SUBNET"); ok {
+		config.TrustedSubnet = trustedSubnet
+	}
+
 	return config
 }
 
@@ -326,6 +332,7 @@ const (
 	kUsage  = "Static key (for educational purposes) for hash generation"
 	dUsage  = "Database address to connect server with (for exemple postgres://zzman:@localhost:5432/postgres)"
 	ckUsage = "Asymmetric encryption private key"
+	tUsage = ""
 )
 
 func InitServerFlagConfig(config *ServerConfig) *ServerConfig {
@@ -334,6 +341,7 @@ func InitServerFlagConfig(config *ServerConfig) *ServerConfig {
 	flag.BoolVar(&config.IsRestore, "r", config.IsRestore, rUsage)
 	flag.StringVar(&config.Key, "k", config.Key, kUsage)
 	flag.StringVar(&config.DataBaseDSN, "d", config.DataBaseDSN, dUsage)
+	flag.StringVar(&config.TrustedSubnet, "t", config.TrustedSubnet, tUsage)
 
 	flag.Func("crypto-key", agentCKUsage, func(cryptoKeyPath string) error {
 		if cryptoKeyPath == "" {

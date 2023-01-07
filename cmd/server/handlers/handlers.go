@@ -193,7 +193,9 @@ func MiddlewareDecompressGzip(next http.Handler) http.Handler {
 	})
 }
 
-func MiddlewareEncryptBodyData(rsaKey *rsa.PrivateKey) func(http.Handler) http.Handler {
+type HandlerResponse = func(http.Handler) http.Handler
+
+func MiddlewareEncryptBodyData(rsaKey *rsa.PrivateKey) HandlerResponse {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			metricBytes, err := ioutil.ReadAll(r.Body)
@@ -211,6 +213,21 @@ func MiddlewareEncryptBodyData(rsaKey *rsa.PrivateKey) func(http.Handler) http.H
 
 			r.ContentLength = int64(len(decryptedMetricBytes))
 			r.Body = ioutil.NopCloser(bytes.NewReader(decryptedMetricBytes))
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+const TrustedSubnetHeader = "X-Real-IP"
+
+func MiddlewareTrustedSubnet(trustedSubnet string) HandlerResponse {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get(TrustedSubnetHeader) != trustedSubnet {
+				http.Error(w, "trust error", http.StatusForbidden)
+				return
+			}
 
 			next.ServeHTTP(w, r)
 		})

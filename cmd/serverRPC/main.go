@@ -94,7 +94,7 @@ func (s *MetricsServerImpl) AddMetrics(ctx context.Context, in *pb.AddMetricsReq
 	resp := &pb.AddMetricsResponse{}
 
 	metricsList := make([]common.Metric, 0)
-	for _, m := range in.Metric {
+	for _, m := range in.Metrics {
 		metricsList = append(metricsList, *m.GetRequestMetric())
 	}
 
@@ -112,11 +112,11 @@ func (s *MetricsServerImpl) AddMetrics(ctx context.Context, in *pb.AddMetricsReq
 
 func (s *MetricsServerImpl) GetMetrics(ctx context.Context, in *pb.GetMetricsRequest) (*pb.GetMetricsResponse, error) {
 	resp := &pb.GetMetricsResponse{
-		Metric: make([]*pb.Metric, 0),
+		Metrics: make([]*pb.Metric, 0),
 	}
 
 	err := s.stor.ForEachMetrics(ctx, func(sm *storage.StorageMetric) {
-		resp.Metric = append(resp.Metric, pb.GetProtoStorageMetric(sm))
+		resp.Metrics = append(resp.Metrics, pb.GetProtoStorageMetric(sm))
 	})
 
 	if err != nil {

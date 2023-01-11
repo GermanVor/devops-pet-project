@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metric"
-	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
 	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
 	"github.com/GermanVor/devops-pet-project/internal/common"
 	"github.com/GermanVor/devops-pet-project/internal/storage"
@@ -57,6 +56,19 @@ func createTestEnvironment(key string) (*storage.Storage, string, func()) {
 	return currentStorage, ts.URL, destructor
 }
 
+func buildRequest(endpointURL, metricType, metricName, metricValue string) (*http.Request, error) {
+	currentURL := endpointURL + "/update/" + metricType + "/" + metricName + "/" + metricValue
+
+	req, err := http.NewRequest(http.MethodPost, currentURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", "text/plain")
+
+	return req, err
+}
+
 func TestServerOperations(t *testing.T) {
 	currentStorage, endpointURL, destructor := createTestEnvironment("")
 	defer destructor()
@@ -66,7 +78,7 @@ func TestServerOperations(t *testing.T) {
 
 	t.Run("Update Gauge metric", func(t *testing.T) {
 		{
-			req, err := utils.BuildRequest(endpointURL, metric.GaugeTypeName, gaugeMetricName, fmt.Sprint(gaugeMetricValue))
+			req, err := buildRequest(endpointURL, metric.GaugeTypeName, gaugeMetricName, fmt.Sprint(gaugeMetricValue))
 			require.NoError(t, err)
 
 			resp, err := http.DefaultClient.Do(req)
@@ -103,7 +115,7 @@ func TestServerOperations(t *testing.T) {
 	counterMetricDelta := rand.Int63()
 
 	t.Run("Update Counter metric", func(t *testing.T) {
-		req, err := utils.BuildRequest(endpointURL, metric.CounterTypeName, counterMetricName, fmt.Sprint(counterMetricDelta))
+		req, err := buildRequest(endpointURL, metric.CounterTypeName, counterMetricName, fmt.Sprint(counterMetricDelta))
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)

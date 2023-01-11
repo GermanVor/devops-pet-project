@@ -105,7 +105,7 @@ func TestMiltiplyMetrics(t *testing.T) {
 
 	t.Run("AddMetrics", func(t *testing.T) {
 		resp, err := client.AddMetrics(ctx, &pb.AddMetricsRequest{
-			Metric: metrics,
+			Metrics: metrics,
 		})
 
 		require.NoError(t, err)
@@ -116,11 +116,11 @@ func TestMiltiplyMetrics(t *testing.T) {
 		resp, err := client.GetMetrics(ctx, &pb.GetMetricsRequest{})
 
 		require.NoError(t, err)
-		require.NotEqual(t, nil, resp.Metric)
+		require.NotEqual(t, nil, resp.Metrics)
 
 		for _, m := range metrics {
 			f := false
-			for _, rm := range resp.Metric {
+			for _, rm := range resp.Metrics {
 				t.Log(rm, m)
 
 				if rm.Equal(m) {

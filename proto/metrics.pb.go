@@ -474,7 +474,7 @@ type AddMetricsRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Metric []*Metric `protobuf:"bytes,1,rep,name=metrics,proto3" json:"metrics,omitempty"`
+	Metrics []*Metric `protobuf:"bytes,1,rep,name=metrics,proto3" json:"metrics,omitempty"`
 }
 
 func (x *AddMetricsRequest) Reset() {
@@ -511,7 +511,7 @@ func (*AddMetricsRequest) Descriptor() ([]byte, []int) {
 
 func (x *AddMetricsRequest) GetMetrics() []*Metric {
 	if x != nil {
-		return x.Metric
+		return x.Metrics
 	}
 	return nil
 }
@@ -606,7 +606,7 @@ type GetMetricsResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Metric []*Metric `protobuf:"bytes,1,rep,name=metrics,proto3" json:"metrics,omitempty"`
+	Metrics []*Metric `protobuf:"bytes,1,rep,name=metrics,proto3" json:"metrics,omitempty"`
 	Error   *Error    `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"` // omitempty
 }
 
@@ -644,7 +644,7 @@ func (*GetMetricsResponse) Descriptor() ([]byte, []int) {
 
 func (x *GetMetricsResponse) GetMetrics() []*Metric {
 	if x != nil {
-		return x.Metric
+		return x.Metrics
 	}
 	return nil
 }
@@ -772,14 +772,14 @@ var file_proto_metrics_proto_depIdxs = []int32{
 	3,  // 7: metrics.AddMetricsResponse.error:type_name -> metrics.Error
 	2,  // 8: metrics.GetMetricsResponse.metrics:type_name -> metrics.Metric
 	3,  // 9: metrics.GetMetricsResponse.error:type_name -> metrics.Error
-	4,  // 10: metrics.Metric.AddMetric:input_type -> metrics.AddMetricRequest
-	6,  // 11: metrics.Metric.GetMetric:input_type -> metrics.GetMetricRequest
-	8,  // 12: metrics.Metric.AddMetrics:input_type -> metrics.AddMetricsRequest
-	10, // 13: metrics.Metric.GetMetrics:input_type -> metrics.GetMetricsRequest
-	5,  // 14: metrics.Metric.AddMetric:output_type -> metrics.AddMetricResponse
-	7,  // 15: metrics.Metric.GetMetric:output_type -> metrics.GetMetricResponse
-	9,  // 16: metrics.Metric.AddMetrics:output_type -> metrics.AddMetricsResponse
-	11, // 17: metrics.Metric.GetMetrics:output_type -> metrics.GetMetricsResponse
+	4,  // 10: metrics.Metrics.AddMetric:input_type -> metrics.AddMetricRequest
+	6,  // 11: metrics.Metrics.GetMetric:input_type -> metrics.GetMetricRequest
+	8,  // 12: metrics.Metrics.AddMetrics:input_type -> metrics.AddMetricsRequest
+	10, // 13: metrics.Metrics.GetMetrics:input_type -> metrics.GetMetricsRequest
+	5,  // 14: metrics.Metrics.AddMetric:output_type -> metrics.AddMetricResponse
+	7,  // 15: metrics.Metrics.GetMetric:output_type -> metrics.GetMetricResponse
+	9,  // 16: metrics.Metrics.AddMetrics:output_type -> metrics.AddMetricsResponse
+	11, // 17: metrics.Metrics.GetMetrics:output_type -> metrics.GetMetricsResponse
 	14, // [14:18] is the sub-list for method output_type
 	10, // [10:14] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name

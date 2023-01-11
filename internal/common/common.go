@@ -31,8 +31,12 @@ type Metrics struct {
 	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-	Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
+	Hash  *string  `json:"hash,omitempty"`  // значение хеш-функции
 }
+
+var (
+	ErrGetMetricHash = errors.New("do not call SetMetricHash before metric.value is assigned")
+)
 
 func createMetricHash(metricsStatsStr, key string) string {
 	h := hmac.New(sha256.New, []byte(key))
@@ -41,13 +45,9 @@ func createMetricHash(metricsStatsStr, key string) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-var (
-	ErrGetMetricHash = errors.New("do not call SetMetricHash before metric.value is assigned")
-)
-
-// GetMetricHash build hash of the metrics
+// getMetricHash build hash of the metrics
 // based on the sha256
-func GetMetricHash(metrics *Metrics, key string) (string, error) {
+func getHashOfMetric(metrics *Metrics, key string) (string, error) {
 	var hash string
 
 	if metrics.MType == GaugeMetricName {
@@ -67,6 +67,25 @@ func GetMetricHash(metrics *Metrics, key string) (string, error) {
 	}
 
 	return hash, nil
+}
+
+func (m *Metrics) SetHash(key string) error {
+	hash, err := getHashOfMetric(m, key)
+	if err != nil {
+		return err
+	}
+
+	m.Hash = &hash
+	return nil
+}
+
+func (m *Metrics) CheckHash(key string) (bool, error) {
+	hash, err := getHashOfMetric(m, key)
+	if err != nil {
+		return false, err
+	}
+
+	return *m.Hash == hash, nil
 }
 
 func readPublicCryptoKey(keyFilePath string) (*rsa.PublicKey, error) {
@@ -332,7 +351,7 @@ const (
 	kUsage  = "Static key (for educational purposes) for hash generation"
 	dUsage  = "Database address to connect server with (for exemple postgres://zzman:@localhost:5432/postgres)"
 	ckUsage = "Asymmetric encryption private key"
-	tUsage = ""
+	tUsage  = ""
 )
 
 func InitServerFlagConfig(config *ServerConfig) *ServerConfig {

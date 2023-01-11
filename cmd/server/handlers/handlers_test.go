@@ -226,7 +226,7 @@ func TestServerOperationsV2(t *testing.T) {
 		}
 
 		if key != "" {
-			metric.Hash, _ = common.GetMetricHash(metric, key)
+			metric.SetHash(key)
 		}
 
 		jsonResp, err := metric.MarshalJSON()
@@ -280,7 +280,7 @@ func TestServerOperationsV2(t *testing.T) {
 		}
 
 		if key != "" {
-			metric.Hash, _ = common.GetMetricHash(metric, key)
+			metric.SetHash(key)
 		}
 
 		jsonResp, err := metric.MarshalJSON()

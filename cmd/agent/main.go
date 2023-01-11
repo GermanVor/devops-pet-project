@@ -110,7 +110,7 @@ func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key str
 		}
 
 		if key != "" {
-			metric.Hash, _ = common.GetMetricHash(&metric, key)
+			metric.SetHash(key)
 		}
 
 		metricsArr = append(metricsArr, metric)

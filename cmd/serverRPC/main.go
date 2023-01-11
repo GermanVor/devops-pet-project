@@ -43,7 +43,7 @@ func (s *MetricsServerImpl) AddMetric(ctx context.Context, in *pb.AddMetricReque
 		MType: in.Metric.Type,
 		Delta: &in.Metric.Delta,
 		Value: &in.Metric.Value,
-		Hash:  in.Metric.Hash,
+		Hash:  &in.Metric.Hash,
 	})
 
 	if err != nil {

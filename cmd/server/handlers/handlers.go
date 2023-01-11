@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 
 	"github.com/GermanVor/devops-pet-project/internal/common"
@@ -25,7 +26,7 @@ import (
 //		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 //		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 //		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-//		Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
+//		Hash  *string   `json:"hash,omitempty"`  // значение хеш-функции
 //	}
 func (s *StorageWrapper) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	metric := &common.Metrics{}
@@ -36,13 +37,7 @@ func (s *StorageWrapper) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.key != "" {
-		metricHash, err := common.GetMetricHash(metric, s.key)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if metricHash != metric.Hash {
+		if ok, _ := metric.CheckHash(s.key); !ok {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -73,7 +68,7 @@ func (s *StorageWrapper) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 //		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 //		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 //		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-//		Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
+//		Hash  *string   `json:"hash,omitempty"`  // значение хеш-функции
 //	}
 func (s *StorageWrapper) UpdateMetrics(w http.ResponseWriter, r *http.Request) {
 	metricsArr := []common.Metrics{}
@@ -81,6 +76,15 @@ func (s *StorageWrapper) UpdateMetrics(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&metricsArr); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
+	}
+
+	if s.key != "" {
+		for _, m := range metricsArr {
+			if ok, _ := m.CheckHash(s.key); !ok {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+		}
 	}
 
 	err := s.stor.UpdateMetrics(r.Context(), metricsArr)
@@ -113,7 +117,7 @@ func MissedMetricNameHandlerFunc(w http.ResponseWriter, r *http.Request) {
 //		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 //		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 //		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-//		Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
+//		Hash  *string   `json:"hash,omitempty"`  // значение хеш-функции
 //	}
 //
 // Response is Metric Value as String.
@@ -153,7 +157,7 @@ func (s *StorageWrapper) GetMetric(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.key != "" {
-		metric.Hash, _ = common.GetMetricHash(metric, s.key)
+		metric.SetHash(s.key)
 	}
 
 	jsonResp, _ := metric.MarshalJSON()
@@ -222,9 +226,18 @@ func MiddlewareEncryptBodyData(rsaKey *rsa.PrivateKey) HandlerResponse {
 const TrustedSubnetHeader = "X-Real-IP"
 
 func MiddlewareTrustedSubnet(trustedSubnet string) HandlerResponse {
+	_, ipnetA, _ := net.ParseCIDR(trustedSubnet)
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get(TrustedSubnetHeader) != trustedSubnet {
+			ip := r.Header.Get(TrustedSubnetHeader)
+			netIP := net.ParseIP(ip)
+			if netIP == nil {
+				http.Error(w, "trust error", http.StatusForbidden)
+				return
+			}
+
+			if !ipnetA.Contains(netIP) {
 				http.Error(w, "trust error", http.StatusForbidden)
 				return
 			}

@@ -112,7 +112,7 @@ func BuildRequestV2(
 	}
 
 	if key != "" {
-		metric.Hash, _ = common.GetMetricHash(metric, key)
+		metric.SetHash(key)
 	}
 
 	metricBytes, err := metric.MarshalJSON()

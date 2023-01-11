@@ -68,15 +68,25 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Compress(5, defaultCompressibleContentTypes...))
 
+	if Config.TrustedSubnet != "" {
+		log.Printf(
+			"Server accepts metrics only with %s equal %s\n",
+			handlers.TrustedSubnetHeader,
+			Config.TrustedSubnet,
+		)
+
+		r.Use(handlers.MiddlewareTrustedSubnet(Config.TrustedSubnet))
+	}
+
 	if Config.CryptoKey.PrivateKey != nil {
-		log.Println("Server will accept encrypted metrics (/updates/)")
+		log.Println("Server accepts encrypted metrics (/updates/)")
 
 		r.Use(handlers.MiddlewareEncryptBodyData(Config.CryptoKey.PrivateKey))
 	}
 
 	r.Use(handlers.MiddlewareDecompressGzip)
 
-	var currentStorage storage.StorageInterface
+	var currentStor storage.StorageInterface
 	if Config.DataBaseDSN != "" {
 		dbContext := context.Background()
 		sqlStorage, err := storage.InitV2(dbContext, Config.DataBaseDSN)
@@ -86,7 +96,7 @@ func main() {
 		}
 		defer sqlStorage.Close()
 
-		currentStorage = sqlStorage
+		currentStor = sqlStorage
 
 		r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 			if sqlStorage.Ping(r.Context()) == nil {
@@ -103,11 +113,11 @@ func main() {
 		}
 
 		stor, _ := storage.Init(initialFilePath)
-		currentStorage = stor
+		currentStor = stor
 
 		if Config.StoreFile != "" {
 			if Config.StoreInterval.Duration == time.Duration(0) {
-				currentStorage = storage.WithBackup(stor, Config.StoreFile)
+				currentStor = storage.WithBackup(stor, Config.StoreFile)
 			} else {
 				stopBackupTicker := storage.InitBackupTicker(stor, Config.StoreFile, Config.StoreInterval.Duration)
 				defer stopBackupTicker()
@@ -115,7 +125,7 @@ func main() {
 		}
 	}
 
-	s := handlers.InitStorageWrapper(currentStorage, Config.Key)
+	s := handlers.InitStorageWrapper(currentStor, Config.Key)
 
 	r.Route("/update", func(r chi.Router) {
 		r.Post("/{mType}/{id}/{metricValue}", s.UpdateMetricV1)
@@ -130,7 +140,7 @@ func main() {
 	r.Get("/value/{mType}/{id}", s.GetMetricV1)
 
 	r.Get("/", s.GetAllMetrics)
-	
+
 	r.Post("/update/", s.UpdateMetric)
 
 	r.Post("/updates/", s.UpdateMetrics)

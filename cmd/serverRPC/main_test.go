@@ -42,7 +42,7 @@ func bufDialer(context.Context, string) (net.Conn, error) {
 func TestSingleMetric(t *testing.T) {
 	value := float64(1)
 	metricType := common.GaugeMetricName
-	pbMetric := pb.GetProtoMetric(&common.Metrics{
+	pbMetric := pb.GetProtoMetric(&common.Metric{
 		ID:    "qwerty",
 		MType: metricType,
 		Value: &value,
@@ -105,7 +105,7 @@ func TestMiltiplyMetrics(t *testing.T) {
 
 	t.Run("AddMetrics", func(t *testing.T) {
 		resp, err := client.AddMetrics(ctx, &pb.AddMetricsRequest{
-			Metrics: metrics,
+			Metric: metrics,
 		})
 
 		require.NoError(t, err)
@@ -116,11 +116,11 @@ func TestMiltiplyMetrics(t *testing.T) {
 		resp, err := client.GetMetrics(ctx, &pb.GetMetricsRequest{})
 
 		require.NoError(t, err)
-		require.NotEqual(t, nil, resp.Metrics)
+		require.NotEqual(t, nil, resp.Metric)
 
 		for _, m := range metrics {
 			f := false
-			for _, rm := range resp.Metrics {
+			for _, rm := range resp.Metric {
 				t.Log(rm, m)
 
 				if rm.Equal(m) {

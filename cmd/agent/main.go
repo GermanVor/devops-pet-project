@@ -17,7 +17,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
+	"github.com/GermanVor/devops-pet-project/cmd/agent/metric"
 	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
 	"github.com/GermanVor/devops-pet-project/internal/common"
 	"github.com/GermanVor/devops-pet-project/internal/crypto"
@@ -41,8 +41,8 @@ var Config = &common.AgentConfig{
 	ReportInterval: common.Duration{Duration: 2 * time.Second},
 }
 
-func SendMetricsV1(metricsObj *metrics.RuntimeMetrics, endpointURL string) {
-	metrics.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
+func SendMetricsV1(metricsObj *metric.RuntimeMetrics, endpointURL string) {
+	metric.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
 		go func() {
 			req, err := utils.BuildRequest(endpointURL, metricType, metricName, metricValue)
 			if err != nil {
@@ -61,8 +61,8 @@ func SendMetricsV1(metricsObj *metrics.RuntimeMetrics, endpointURL string) {
 	})
 }
 
-func SendMetricsV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string, rsaKey *rsa.PublicKey) {
-	metrics.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
+func SendMetricsV2(metricsObj *metric.RuntimeMetrics, endpointURL, key string, rsaKey *rsa.PublicKey) {
+	metric.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
 		go func() {
 			req, err := utils.BuildRequestV2(endpointURL, metricType, metricName, metricValue, key, rsaKey)
 			if err != nil {
@@ -81,11 +81,11 @@ func SendMetricsV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string, 
 	})
 }
 
-func SendMetricsButchV2(metricsObj *metrics.RuntimeMetrics, endpointURL, key string, rsaKey *rsa.PublicKey) {
-	metricsArr := []common.Metrics{}
+func SendMetricsButchV2(metricsObj *metric.RuntimeMetrics, endpointURL, key string, rsaKey *rsa.PublicKey) {
+	metricsArr := []common.Metric{}
 
-	metrics.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
-		metric := common.Metrics{
+	metric.ForEach(metricsObj, func(metricType, metricName, metricValue string) {
+		metric := common.Metric{
 			ID:    metricName,
 			MType: metricType,
 		}
@@ -167,8 +167,8 @@ func Start(ctx context.Context, endpointURL string, rsaKey *rsa.PublicKey) {
 	reportInterval := time.NewTicker(Config.ReportInterval.Duration)
 	defer reportInterval.Stop()
 
-	var mPointer *metrics.RuntimeMetrics
-	pollCount := metrics.Counter(0)
+	var mPointer *metric.RuntimeMetrics
+	pollCount := metric.Counter(0)
 
 	mux := sync.Mutex{}
 
@@ -179,7 +179,7 @@ func Start(ctx context.Context, endpointURL string, rsaKey *rsa.PublicKey) {
 		for {
 			select {
 			case <-pollTicker.C:
-				metricsPointer := &metrics.RuntimeMetrics{}
+				metricsPointer := &metric.RuntimeMetrics{}
 
 				wg := sync.WaitGroup{}
 				wg.Add(2)
@@ -257,7 +257,7 @@ func main() {
 	}()
 
 	if Config.CryptoKey.PublicKey != nil {
-		log.Println("Agent will Encrypt Metrics (/updates/)")
+		log.Println("Agent will Encrypt Metric (/updates/)")
 	}
 
 	Start(ctx, "http://"+Config.Address, Config.CryptoKey.PublicKey)

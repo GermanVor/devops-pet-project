@@ -36,8 +36,8 @@ func (protoMetric *Metric) Equal(protoMetricA *Metric) bool {
 	return true
 }
 
-func (protoMetric *Metric) GetRequestMetric() *common.Metrics {
-	metric := &common.Metrics{
+func (protoMetric *Metric) GetRequestMetric() *common.Metric {
+	metric := &common.Metric{
 		ID:   protoMetric.Id,
 		Hash: protoMetric.Hash,
 	}
@@ -75,7 +75,7 @@ func GetProtoStorageMetric(storageMetric *storage.StorageMetric) *Metric {
 	return protoMetric
 }
 
-func GetProtoMetric(metric *common.Metrics) *Metric {
+func GetProtoMetric(metric *common.Metric) *Metric {
 	protoMetric := &Metric{
 		Id: metric.ID,
 	}

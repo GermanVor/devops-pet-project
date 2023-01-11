@@ -25,8 +25,8 @@ type StorageMetric struct {
 type StorageInterface interface {
 	ForEachMetrics(context.Context, func(*StorageMetric)) error
 	GetMetric(ctx context.Context, mType string, id string) (*StorageMetric, error)
-	UpdateMetric(ctx context.Context, metric common.Metrics) error
-	UpdateMetrics(ctx context.Context, metricsList []common.Metrics) error
+	UpdateMetric(ctx context.Context, metric common.Metric) error
+	UpdateMetrics(ctx context.Context, metricsList []common.Metric) error
 }
 
 type StorageV2 struct {
@@ -149,7 +149,7 @@ func (stor *StorageV2) GetMetric(ctx context.Context, mType string, id string) (
 	return storageMetric, nil
 }
 
-func (stor *StorageV2) UpdateMetric(ctx context.Context, metric common.Metrics) error {
+func (stor *StorageV2) UpdateMetric(ctx context.Context, metric common.Metric) error {
 	var err error
 
 	switch metric.MType {
@@ -164,7 +164,7 @@ func (stor *StorageV2) UpdateMetric(ctx context.Context, metric common.Metrics) 
 	return err
 }
 
-func (stor *StorageV2) UpdateMetrics(ctx context.Context, metricsList []common.Metrics) error {
+func (stor *StorageV2) UpdateMetrics(ctx context.Context, metricsList []common.Metric) error {
 	tx, err := stor.dbPool.Begin(ctx)
 	if err != nil {
 		return err
@@ -247,7 +247,7 @@ func (stor *Storage) GetMetric(ctx context.Context, mType string, id string) (*S
 	return nil, nil
 }
 
-func (stor *Storage) UpdateMetric(ctx context.Context, metric common.Metrics) error {
+func (stor *Storage) UpdateMetric(ctx context.Context, metric common.Metric) error {
 	stor.storageRWM.Lock()
 	defer stor.storageRWM.Unlock()
 
@@ -263,7 +263,7 @@ func (stor *Storage) UpdateMetric(ctx context.Context, metric common.Metrics) er
 	return nil
 }
 
-func (stor *Storage) UpdateMetrics(ctx context.Context, metricsList []common.Metrics) error {
+func (stor *Storage) UpdateMetrics(ctx context.Context, metricsList []common.Metric) error {
 	stor.storageRWM.Lock()
 	defer stor.storageRWM.Unlock()
 
@@ -317,7 +317,7 @@ func writeStoreBackup(stor *Storage, backupFilePath string) error {
 	return os.WriteFile(backupFilePath, backupBytes, 0644)
 }
 
-func (stor *BackupStorageWrapper) UpdateMetric(ctx context.Context, metric common.Metrics) error {
+func (stor *BackupStorageWrapper) UpdateMetric(ctx context.Context, metric common.Metric) error {
 	err := stor.Storage.UpdateMetric(ctx, metric)
 	if err != nil {
 		return err
@@ -434,10 +434,10 @@ func (s *MockStorage) GetMetric(ctx context.Context, mType string, id string) (*
 	return s.GetMetricResponse, s.GetMetricErrorResponse
 }
 
-func (s *MockStorage) UpdateMetric(ctx context.Context, metric common.Metrics) error {
+func (s *MockStorage) UpdateMetric(ctx context.Context, metric common.Metric) error {
 	return s.UpdateMetricResponse
 }
 
-func (s *MockStorage) UpdateMetrics(ctx context.Context, metricsList []common.Metrics) error {
+func (s *MockStorage) UpdateMetrics(ctx context.Context, metricsList []common.Metric) error {
 	return s.UpdateMetricsResponse
 }

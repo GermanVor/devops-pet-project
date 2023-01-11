@@ -26,7 +26,7 @@ const (
 )
 
 //easyjson:json
-type Metrics struct {
+type Metric struct {
 	ID    string   `json:"id"`              // имя метрики
 	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
@@ -47,7 +47,7 @@ func createMetricHash(metricsStatsStr, key string) string {
 
 // getMetricHash build hash of the metrics
 // based on the sha256
-func getHashOfMetric(metrics *Metrics, key string) (string, error) {
+func getHashOfMetric(metrics *Metric, key string) (string, error) {
 	var hash string
 
 	if metrics.MType == GaugeMetricName {
@@ -69,7 +69,7 @@ func getHashOfMetric(metrics *Metrics, key string) (string, error) {
 	return hash, nil
 }
 
-func (m *Metrics) SetHash(key string) error {
+func (m *Metric) SetHash(key string) error {
 	hash, err := getHashOfMetric(m, key)
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func (m *Metrics) SetHash(key string) error {
 	return nil
 }
 
-func (m *Metrics) CheckHash(key string) (bool, error) {
+func (m *Metric) CheckHash(key string) (bool, error) {
 	hash, err := getHashOfMetric(m, key)
 	if err != nil {
 		return false, err
@@ -251,8 +251,8 @@ func InitAgentEnvConfig(config *AgentConfig) *AgentConfig {
 
 const (
 	agentAddrUsage   = "Address to send metrics"
-	agentPollUsage   = "The time in seconds when Agent collects Metrics."
-	agentReportUsage = "The time in seconds when Agent sent Metrics to the Server."
+	agentPollUsage   = "The time in seconds when Agent collects Metric."
+	agentReportUsage = "The time in seconds when Agent sent Metric to the Server."
 	agentKey         = "Static key (for educational purposes) for hash generation"
 	agentCKUsage     = "Asymmetric encryption publick key"
 )
@@ -345,7 +345,7 @@ func InitServerEnvConfig(config *ServerConfig) *ServerConfig {
 
 const (
 	aUsage  = "Address to listen on"
-	fUsage  = "The name of the file in which Server will store Metrics (Empty name turn off storing Metrics)"
+	fUsage  = "The name of the file in which Server will store Metric (Empty name turn off storing Metric)"
 	rUsage  = "Bool value. `true` - At startup Server will try to load data from `STORE_FILE`. `false` - Server will create new `STORE_FILE` file in startup."
 	iUsage  = "The time in seconds after which the current server readings are reset to disk \n (value 0 — makes the recording synchronous)."
 	kUsage  = "Static key (for educational purposes) for hash generation"

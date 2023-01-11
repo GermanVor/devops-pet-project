@@ -1,4 +1,4 @@
-// All the necessary endpoints for storing Metrics in Storage.
+// All the necessary endpoints for storing Metric in Storage.
 package handlers
 
 import (
@@ -19,9 +19,9 @@ import (
 //
 // key - secret key to for authorization.
 //
-// Expected Request Body interface is Metrics.
+// Expected Request Body interface is Metric.
 //
-//	type Metrics struct {
+//	type Metric struct {
 //		ID    string   `json:"id"`              // имя метрики
 //		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 //		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
@@ -29,7 +29,7 @@ import (
 //		Hash  *string   `json:"hash,omitempty"`  // значение хеш-функции
 //	}
 func (s *StorageWrapper) UpdateMetric(w http.ResponseWriter, r *http.Request) {
-	metric := &common.Metrics{}
+	metric := &common.Metric{}
 
 	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -59,11 +59,11 @@ func (s *StorageWrapper) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// UpdateMetrics Handler to save pack of Metrics by request Body.
+// UpdateMetrics Handler to save pack of Metric by request Body.
 //
-// Expected Request Body interface is []Metrics.
+// Expected Request Body interface is []Metric.
 //
-//	type Metrics struct {
+//	type Metric struct {
 //		ID    string   `json:"id"`              // имя метрики
 //		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 //		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
@@ -71,7 +71,7 @@ func (s *StorageWrapper) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 //		Hash  *string   `json:"hash,omitempty"`  // значение хеш-функции
 //	}
 func (s *StorageWrapper) UpdateMetrics(w http.ResponseWriter, r *http.Request) {
-	metricsArr := []common.Metrics{}
+	metricsArr := []common.Metric{}
 
 	if err := json.NewDecoder(r.Body).Decode(&metricsArr); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -110,9 +110,9 @@ func MissedMetricNameHandlerFunc(w http.ResponseWriter, r *http.Request) {
 //
 // key - secret key to for authorization.
 //
-// Expected Request Body interface is Metrics. Delta and Value field in Request will be ignored.
+// Expected Request Body interface is Metric. Delta and Value field in Request will be ignored.
 //
-//	type Metrics struct {
+//	type Metric struct {
 //		ID    string   `json:"id"`              // имя метрики
 //		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 //		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
@@ -123,7 +123,7 @@ func MissedMetricNameHandlerFunc(w http.ResponseWriter, r *http.Request) {
 // Response is Metric Value as String.
 func (s *StorageWrapper) GetMetric(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	metric := &common.Metrics{}
+	metric := &common.Metric{}
 
 	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
 		w.WriteHeader(http.StatusBadRequest)

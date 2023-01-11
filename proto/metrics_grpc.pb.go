@@ -18,7 +18,7 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// MetricsClient is the client API for Metrics service.
+// MetricsClient is the client API for Metric service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MetricsClient interface {
@@ -38,7 +38,7 @@ func NewMetricsClient(cc grpc.ClientConnInterface) MetricsClient {
 
 func (c *metricsClient) AddMetric(ctx context.Context, in *AddMetricRequest, opts ...grpc.CallOption) (*AddMetricResponse, error) {
 	out := new(AddMetricResponse)
-	err := c.cc.Invoke(ctx, "/metrics.Metrics/AddMetric", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/metrics.Metric/AddMetric", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (c *metricsClient) AddMetric(ctx context.Context, in *AddMetricRequest, opt
 
 func (c *metricsClient) GetMetric(ctx context.Context, in *GetMetricRequest, opts ...grpc.CallOption) (*GetMetricResponse, error) {
 	out := new(GetMetricResponse)
-	err := c.cc.Invoke(ctx, "/metrics.Metrics/GetMetric", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/metrics.Metric/GetMetric", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (c *metricsClient) GetMetric(ctx context.Context, in *GetMetricRequest, opt
 
 func (c *metricsClient) AddMetrics(ctx context.Context, in *AddMetricsRequest, opts ...grpc.CallOption) (*AddMetricsResponse, error) {
 	out := new(AddMetricsResponse)
-	err := c.cc.Invoke(ctx, "/metrics.Metrics/AddMetrics", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/metrics.Metric/AddMetrics", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -65,14 +65,14 @@ func (c *metricsClient) AddMetrics(ctx context.Context, in *AddMetricsRequest, o
 
 func (c *metricsClient) GetMetrics(ctx context.Context, in *GetMetricsRequest, opts ...grpc.CallOption) (*GetMetricsResponse, error) {
 	out := new(GetMetricsResponse)
-	err := c.cc.Invoke(ctx, "/metrics.Metrics/GetMetrics", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/metrics.Metric/GetMetrics", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// MetricsServer is the server API for Metrics service.
+// MetricsServer is the server API for Metric service.
 // All implementations must embed UnimplementedMetricsServer
 // for forward compatibility
 type MetricsServer interface {
@@ -122,7 +122,7 @@ func _Metrics_AddMetric_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/metrics.Metrics/AddMetric",
+		FullMethod: "/metrics.Metric/AddMetric",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MetricsServer).AddMetric(ctx, req.(*AddMetricRequest))
@@ -140,7 +140,7 @@ func _Metrics_GetMetric_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/metrics.Metrics/GetMetric",
+		FullMethod: "/metrics.Metric/GetMetric",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MetricsServer).GetMetric(ctx, req.(*GetMetricRequest))
@@ -158,7 +158,7 @@ func _Metrics_AddMetrics_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/metrics.Metrics/AddMetrics",
+		FullMethod: "/metrics.Metric/AddMetrics",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MetricsServer).AddMetrics(ctx, req.(*AddMetricsRequest))
@@ -176,7 +176,7 @@ func _Metrics_GetMetrics_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/metrics.Metrics/GetMetrics",
+		FullMethod: "/metrics.Metric/GetMetrics",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MetricsServer).GetMetrics(ctx, req.(*GetMetricsRequest))
@@ -184,11 +184,11 @@ func _Metrics_GetMetrics_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-// Metrics_ServiceDesc is the grpc.ServiceDesc for Metrics service.
+// Metrics_ServiceDesc is the grpc.ServiceDesc for Metric service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Metrics_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "metrics.Metrics",
+	ServiceName: "metrics.Metric",
 	HandlerType: (*MetricsServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

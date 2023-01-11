@@ -8,54 +8,54 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
+	"github.com/GermanVor/devops-pet-project/cmd/agent/metric"
 	"github.com/GermanVor/devops-pet-project/internal/common"
 	"github.com/GermanVor/devops-pet-project/internal/crypto"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/mem"
 )
 
-func CollectMetrics(m *metrics.RuntimeMetrics) {
+func CollectMetrics(m *metric.RuntimeMetrics) {
 	rtm := runtime.MemStats{}
 	runtime.ReadMemStats(&rtm)
 
-	m.Alloc = metrics.Gauge(rtm.Alloc)
-	m.BuckHashSys = metrics.Gauge(rtm.BuckHashSys)
-	m.Frees = metrics.Gauge(rtm.Frees)
-	m.GCCPUFraction = metrics.Gauge(rtm.GCCPUFraction)
-	m.GCSys = metrics.Gauge(rtm.GCSys)
-	m.HeapAlloc = metrics.Gauge(rtm.HeapAlloc)
-	m.HeapIdle = metrics.Gauge(rtm.HeapIdle)
-	m.HeapInuse = metrics.Gauge(rtm.HeapInuse)
-	m.HeapObjects = metrics.Gauge(rtm.HeapObjects)
-	m.HeapReleased = metrics.Gauge(rtm.HeapReleased)
-	m.HeapSys = metrics.Gauge(rtm.HeapSys)
-	m.LastGC = metrics.Gauge(rtm.LastGC)
-	m.Lookups = metrics.Gauge(rtm.Lookups)
-	m.MCacheInuse = metrics.Gauge(rtm.MCacheInuse)
-	m.MCacheSys = metrics.Gauge(rtm.MCacheSys)
-	m.MSpanInuse = metrics.Gauge(rtm.MSpanInuse)
-	m.MSpanSys = metrics.Gauge(rtm.MSpanSys)
-	m.Mallocs = metrics.Gauge(rtm.Mallocs)
-	m.NextGC = metrics.Gauge(rtm.NextGC)
-	m.NumForcedGC = metrics.Gauge(rtm.NumForcedGC)
-	m.NumGC = metrics.Gauge(rtm.NumGC)
-	m.OtherSys = metrics.Gauge(rtm.OtherSys)
-	m.PauseTotalNs = metrics.Gauge(rtm.PauseTotalNs)
-	m.StackInuse = metrics.Gauge(rtm.StackInuse)
-	m.StackSys = metrics.Gauge(rtm.StackSys)
-	m.Sys = metrics.Gauge(rtm.Sys)
-	m.TotalAlloc = metrics.Gauge(rtm.TotalAlloc)
+	m.Alloc = metric.Gauge(rtm.Alloc)
+	m.BuckHashSys = metric.Gauge(rtm.BuckHashSys)
+	m.Frees = metric.Gauge(rtm.Frees)
+	m.GCCPUFraction = metric.Gauge(rtm.GCCPUFraction)
+	m.GCSys = metric.Gauge(rtm.GCSys)
+	m.HeapAlloc = metric.Gauge(rtm.HeapAlloc)
+	m.HeapIdle = metric.Gauge(rtm.HeapIdle)
+	m.HeapInuse = metric.Gauge(rtm.HeapInuse)
+	m.HeapObjects = metric.Gauge(rtm.HeapObjects)
+	m.HeapReleased = metric.Gauge(rtm.HeapReleased)
+	m.HeapSys = metric.Gauge(rtm.HeapSys)
+	m.LastGC = metric.Gauge(rtm.LastGC)
+	m.Lookups = metric.Gauge(rtm.Lookups)
+	m.MCacheInuse = metric.Gauge(rtm.MCacheInuse)
+	m.MCacheSys = metric.Gauge(rtm.MCacheSys)
+	m.MSpanInuse = metric.Gauge(rtm.MSpanInuse)
+	m.MSpanSys = metric.Gauge(rtm.MSpanSys)
+	m.Mallocs = metric.Gauge(rtm.Mallocs)
+	m.NextGC = metric.Gauge(rtm.NextGC)
+	m.NumForcedGC = metric.Gauge(rtm.NumForcedGC)
+	m.NumGC = metric.Gauge(rtm.NumGC)
+	m.OtherSys = metric.Gauge(rtm.OtherSys)
+	m.PauseTotalNs = metric.Gauge(rtm.PauseTotalNs)
+	m.StackInuse = metric.Gauge(rtm.StackInuse)
+	m.StackSys = metric.Gauge(rtm.StackSys)
+	m.Sys = metric.Gauge(rtm.Sys)
+	m.TotalAlloc = metric.Gauge(rtm.TotalAlloc)
 
-	m.RandomValue = metrics.Gauge(rand.Float64())
+	m.RandomValue = metric.Gauge(rand.Float64())
 }
 
-func CollectGopsutilMetrics(m *metrics.RuntimeMetrics) {
+func CollectGopsutilMetrics(m *metric.RuntimeMetrics) {
 	v, _ := mem.VirtualMemory()
-	m.TotalMemory = metrics.Gauge(v.Total)
-	m.FreeMemory = metrics.Gauge(v.Free)
+	m.TotalMemory = metric.Gauge(v.Total)
+	m.FreeMemory = metric.Gauge(v.Free)
 
-	count := metrics.Gauge(0)
+	count := metric.Gauge(0)
 	a, _ := cpu.Percent(0, true)
 	for _, percent := range a {
 		if percent != 0 {
@@ -90,7 +90,7 @@ func BuildRequestV2(
 	key string,
 	rsaKey *rsa.PublicKey,
 ) (*http.Request, error) {
-	metric := &common.Metrics{
+	metric := &common.Metric{
 		ID:    metricName,
 		MType: metricType,
 	}

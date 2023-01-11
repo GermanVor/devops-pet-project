@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
+	"github.com/GermanVor/devops-pet-project/cmd/agent/metric"
 	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
 	"github.com/GermanVor/devops-pet-project/internal/common"
 	pb "github.com/GermanVor/devops-pet-project/proto"
@@ -39,8 +39,8 @@ func Start(ctx context.Context, target string) {
 	reportInterval := time.NewTicker(Config.ReportInterval.Duration)
 	defer reportInterval.Stop()
 
-	var mPointer *metrics.RuntimeMetrics
-	pollCount := metrics.Counter(0)
+	var mPointer *metric.RuntimeMetrics
+	pollCount := metric.Counter(0)
 
 	mux := sync.Mutex{}
 
@@ -59,7 +59,7 @@ func Start(ctx context.Context, target string) {
 		for {
 			select {
 			case <-pollTicker.C:
-				metricsPointer := &metrics.RuntimeMetrics{}
+				metricsPointer := &metric.RuntimeMetrics{}
 
 				wg := sync.WaitGroup{}
 				wg.Add(2)
@@ -100,7 +100,7 @@ func Start(ctx context.Context, target string) {
 
 				mux.Unlock()
 
-				metrics.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
+				metric.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
 					m := &pb.Metric{
 						Id: metricName,
 					}

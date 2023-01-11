@@ -102,8 +102,7 @@ func Start(ctx context.Context, target string) {
 
 				metrics.ForEach(&metricsCopy, func(metricType, metricName, metricValue string) {
 					m := &pb.Metric{
-						Id:   metricName,
-						Type: metricType,
+						Id: metricName,
 					}
 
 					switch metricType {
@@ -113,14 +112,14 @@ func Start(ctx context.Context, target string) {
 							return
 						}
 
-						m.Value = value
+						m.Spec = &pb.Metric_Gauge{Gauge: &pb.GaugeMetric{Value: value}}
 					case common.CounterMetricName:
 						delta, err := strconv.ParseInt(metricValue, 10, 64)
 						if err != nil {
 							return
 						}
 
-						m.Delta = delta
+						m.Spec = &pb.Metric_Counter{Counter: &pb.CounterMetric{Delta: delta}}
 					}
 
 					c.AddMetric(ctx, &pb.AddMetricRequest{

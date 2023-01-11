@@ -38,13 +38,7 @@ func (s *MetricsServerImpl) AddMetric(ctx context.Context, in *pb.AddMetricReque
 		return resp, nil
 	}
 
-	err := s.stor.UpdateMetric(ctx, common.Metrics{
-		ID:    in.Metric.Id,
-		MType: in.Metric.Type,
-		Delta: &in.Metric.Delta,
-		Value: &in.Metric.Value,
-		Hash:  &in.Metric.Hash,
-	})
+	err := s.stor.UpdateMetric(ctx, *in.Metric.GetRequestMetric())
 
 	if err != nil {
 		resp.Error = &pb.Error{
@@ -71,7 +65,7 @@ func (s *MetricsServerImpl) GetMetric(ctx context.Context, in *pb.GetMetricReque
 		return resp, nil
 	}
 
-	metric, err := s.stor.GetMetric(ctx, in.Type, in.Id)
+	storageMetric, err := s.stor.GetMetric(ctx, in.Type, in.Id)
 
 	if err != nil {
 		resp.Error = &pb.Error{
@@ -82,7 +76,7 @@ func (s *MetricsServerImpl) GetMetric(ctx context.Context, in *pb.GetMetricReque
 		return resp, nil
 	}
 
-	if metric == nil {
+	if storageMetric == nil {
 		resp.Error = &pb.Error{
 			Code:    http.StatusInternalServerError,
 			Message: "",
@@ -91,17 +85,7 @@ func (s *MetricsServerImpl) GetMetric(ctx context.Context, in *pb.GetMetricReque
 		return resp, nil
 	}
 
-	resp.Metric = &pb.Metric{
-		Id:   metric.ID,
-		Type: metric.MType,
-	}
-
-	switch in.Type {
-	case common.GaugeMetricName:
-		resp.Metric.Value = metric.Value
-	case common.CounterMetricName:
-		resp.Metric.Delta = metric.Delta
-	}
+	resp.Metric = pb.GetProtoStorageMetric(storageMetric)
 
 	return resp, nil
 }
@@ -111,19 +95,7 @@ func (s *MetricsServerImpl) AddMetrics(ctx context.Context, in *pb.AddMetricsReq
 
 	metricsList := make([]common.Metrics, 0)
 	for _, m := range in.Metrics {
-		sm := common.Metrics{
-			ID:    m.Id,
-			MType: m.Type,
-		}
-
-		switch m.Type {
-		case common.GaugeMetricName:
-			sm.Value = &m.Value
-		case common.CounterMetricName:
-			sm.Delta = &m.Delta
-		}
-
-		metricsList = append(metricsList, sm)
+		metricsList = append(metricsList, *m.GetRequestMetric())
 	}
 
 	err := s.stor.UpdateMetrics(ctx, metricsList)
@@ -144,19 +116,7 @@ func (s *MetricsServerImpl) GetMetrics(ctx context.Context, in *pb.GetMetricsReq
 	}
 
 	err := s.stor.ForEachMetrics(ctx, func(sm *storage.StorageMetric) {
-		m := &pb.Metric{
-			Id:   sm.ID,
-			Type: sm.MType,
-		}
-
-		switch m.Type {
-		case common.GaugeMetricName:
-			m.Value = sm.Value
-		case common.CounterMetricName:
-			m.Delta = sm.Delta
-		}
-
-		resp.Metrics = append(resp.Metrics, m)
+		resp.Metrics = append(resp.Metrics, pb.GetProtoStorageMetric(sm))
 	})
 
 	if err != nil {

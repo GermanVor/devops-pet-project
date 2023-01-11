@@ -40,9 +40,13 @@ func bufDialer(context.Context, string) (net.Conn, error) {
 }
 
 func TestSingleMetric(t *testing.T) {
-	metricID := "qwerty"
-	metricValue := float64(1)
+	value := float64(1)
 	metricType := common.GaugeMetricName
+	pbMetric := pb.GetProtoMetric(&common.Metrics{
+		ID:    "qwerty",
+		MType: metricType,
+		Value: &value,
+	})
 
 	ctx := context.Background()
 
@@ -55,11 +59,7 @@ func TestSingleMetric(t *testing.T) {
 
 	t.Run("AddMetric", func(t *testing.T) {
 		resp, err := client.AddMetric(ctx, &pb.AddMetricRequest{
-			Metric: &pb.Metric{
-				Id:    metricID,
-				Value: metricValue,
-				Type:  metricType,
-			},
+			Metric: pbMetric,
 		})
 
 		require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestSingleMetric(t *testing.T) {
 
 	t.Run("GetMetric", func(t *testing.T) {
 		resp, err := client.GetMetric(ctx, &pb.GetMetricRequest{
-			Id:   metricID,
+			Id:   pbMetric.Id,
 			Type: metricType,
 		})
 
@@ -77,23 +77,20 @@ func TestSingleMetric(t *testing.T) {
 		assert.Equal(t, (*pb.Error)(nil), resp.Error)
 
 		require.NotNil(t, resp.Metric)
-		assert.Equal(t, metricID, resp.Metric.Id)
-		assert.Equal(t, metricType, resp.Metric.Type)
-		assert.Equal(t, metricValue, resp.Metric.Value)
+		assert.Equal(t, pbMetric.Id, resp.Metric.Id)
+		assert.Equal(t, value, resp.Metric.GetGauge().GetValue())
 	})
 }
 
 func TestMiltiplyMetrics(t *testing.T) {
 	metrics := []*pb.Metric{
 		{
-			Id:    "ID-1",
-			Type:  common.GaugeMetricName,
-			Value: 55,
+			Id:   "ID-1",
+			Spec: &pb.Metric_Gauge{Gauge: &pb.GaugeMetric{Value: 55}},
 		},
 		{
-			Id:    "Id-2",
-			Type:  common.CounterMetricName,
-			Delta: 22,
+			Id:   "Id-2",
+			Spec: &pb.Metric_Counter{Counter: &pb.CounterMetric{Delta: 22}},
 		},
 	}
 
@@ -126,7 +123,7 @@ func TestMiltiplyMetrics(t *testing.T) {
 			for _, rm := range resp.Metrics {
 				t.Log(rm, m)
 
-				if rm.Id == m.Id && rm.Type == m.Type && rm.Value == m.Value && rm.Delta == m.Delta {
+				if rm.Equal(m) {
 					f = true
 					break
 				}

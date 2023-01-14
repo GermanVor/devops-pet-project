@@ -35,6 +35,15 @@ service Metrics {
 
     rpc AddMetrics(AddMetricsRequest) returns (AddMetricsResponse);
     rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+
+    rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message PingRequest {
+}
+
+message PingResponse {
+    bool status = 1;
 }
 
 

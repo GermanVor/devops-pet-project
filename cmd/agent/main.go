@@ -54,7 +54,7 @@ func main() {
 		cancel()
 	}()
 
-	service := service.InitService(*Config, ctx, service.HTTP)
+	service := service.InitService(*Config, ctx, common.HTTP)
 	service.StartSending()
 
 	log.Println("Agent finished work")

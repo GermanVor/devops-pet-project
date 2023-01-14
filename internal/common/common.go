@@ -439,3 +439,10 @@ func Chunks[T any](arr []T, chunkSize int) [][]T {
 
 	return chunks
 }
+
+type ServiceType int64
+
+const (
+	HTTP ServiceType = 0
+	GRPC ServiceType = 1
+)

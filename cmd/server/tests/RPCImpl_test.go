@@ -1,4 +1,4 @@
-package main_test
+package main
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"net"
 	"testing"
 
-	main "github.com/GermanVor/devops-pet-project/cmd/serverRPC"
+	"github.com/GermanVor/devops-pet-project/cmd/server/service"
 	"github.com/GermanVor/devops-pet-project/internal/common"
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 	pb "github.com/GermanVor/devops-pet-project/proto"
@@ -26,7 +26,7 @@ func init() {
 	lis = bufconn.Listen(bufSize)
 	s := grpc.NewServer()
 
-	pb.RegisterMetricsServer(s, main.InitMetricsServer(stor))
+	pb.RegisterMetricsServer(s, service.InitRPCImpl(stor))
 
 	go func() {
 		if err := s.Serve(lis); err != nil {

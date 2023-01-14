@@ -1,13 +1,10 @@
-package main
+package service
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/GermanVor/devops-pet-project/internal/common"
 	"github.com/GermanVor/devops-pet-project/internal/storage"
@@ -15,18 +12,24 @@ import (
 	"google.golang.org/grpc"
 )
 
-type MetricsServerImpl struct {
+type RPCImpl struct {
 	pb.UnimplementedMetricsServer
 	stor storage.StorageInterface
 }
 
-func InitMetricsServer(stor storage.StorageInterface) pb.MetricsServer {
-	return &MetricsServerImpl{
+func InitRPCImpl(stor storage.StorageInterface) *RPCImpl {
+	return &RPCImpl{
 		stor: stor,
 	}
 }
 
-func (s *MetricsServerImpl) AddMetric(ctx context.Context, in *pb.AddMetricRequest) (*pb.AddMetricResponse, error) {
+type RPCServer struct {
+	address string
+	server  *grpc.Server
+	impl    *RPCImpl
+}
+
+func (s *RPCImpl) AddMetric(ctx context.Context, in *pb.AddMetricRequest) (*pb.AddMetricResponse, error) {
 	resp := &pb.AddMetricResponse{}
 
 	if in.Metric == nil {
@@ -50,7 +53,7 @@ func (s *MetricsServerImpl) AddMetric(ctx context.Context, in *pb.AddMetricReque
 	return resp, nil
 }
 
-func (s *MetricsServerImpl) GetMetric(ctx context.Context, in *pb.GetMetricRequest) (*pb.GetMetricResponse, error) {
+func (s *RPCImpl) GetMetric(ctx context.Context, in *pb.GetMetricRequest) (*pb.GetMetricResponse, error) {
 	resp := &pb.GetMetricResponse{}
 
 	switch in.Type {
@@ -90,7 +93,7 @@ func (s *MetricsServerImpl) GetMetric(ctx context.Context, in *pb.GetMetricReque
 	return resp, nil
 }
 
-func (s *MetricsServerImpl) AddMetrics(ctx context.Context, in *pb.AddMetricsRequest) (*pb.AddMetricsResponse, error) {
+func (s *RPCImpl) AddMetrics(ctx context.Context, in *pb.AddMetricsRequest) (*pb.AddMetricsResponse, error) {
 	resp := &pb.AddMetricsResponse{}
 
 	metricsList := make([]common.Metric, 0)
@@ -110,7 +113,7 @@ func (s *MetricsServerImpl) AddMetrics(ctx context.Context, in *pb.AddMetricsReq
 	return resp, nil
 }
 
-func (s *MetricsServerImpl) GetMetrics(ctx context.Context, in *pb.GetMetricsRequest) (*pb.GetMetricsResponse, error) {
+func (s *RPCImpl) GetMetrics(ctx context.Context, in *pb.GetMetricsRequest) (*pb.GetMetricsResponse, error) {
 	resp := &pb.GetMetricsResponse{
 		Metrics: make([]*pb.Metric, 0),
 	}
@@ -131,56 +134,31 @@ func (s *MetricsServerImpl) GetMetrics(ctx context.Context, in *pb.GetMetricsReq
 	return resp, nil
 }
 
-var Config = &common.ServerConfig{
-	Address:       "localhost:8080",
-	StoreInterval: common.Duration{Duration: 300 * time.Second},
-	StoreFile:     "/tmp/devops-metrics-db.json",
-	IsRestore:     true,
+func (s *RPCImpl) Ping(ctx context.Context, in *pb.PingRequest) (*pb.PingResponse, error) {
+	err := s.stor.Ping(ctx)
+
+	return &pb.PingResponse{Status: err == nil}, nil
 }
 
-func initConfig() {
-	common.InitJSONConfig(Config)
-	common.InitServerFlagConfig(Config)
-	flag.Parse()
-
-	common.InitServerEnvConfig(Config)
-}
-
-func main() {
-	initConfig()
-
-	var currentStor storage.StorageInterface
-	if Config.DataBaseDSN != "" {
-		dbContext := context.Background()
-		sqlStorage, err := storage.InitV2(dbContext, Config.DataBaseDSN)
-
-		if err != nil {
-			log.Fatalf(err.Error())
-		}
-		defer sqlStorage.Close()
-
-		currentStor = sqlStorage
-	} else {
-		var initialFilePath *string
-		if Config.IsRestore && Config.StoreFile != "" {
-			initialFilePath = &Config.StoreFile
-		}
-
-		stor, _ := storage.Init(initialFilePath)
-		currentStor = stor
-	}
-
-	listen, err := net.Listen("tcp", Config.Address)
+func (s *RPCServer) Start() error {
+	listen, err := net.Listen("tcp", s.address)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	s := grpc.NewServer()
-	pb.RegisterMetricsServer(s, InitMetricsServer(currentStor))
+	pb.RegisterMetricsServer(s.server, s.impl)
 
 	fmt.Println("Server gRPC started")
 
-	if err := s.Serve(listen); err != nil {
-		log.Fatal(err)
+	return s.server.Serve(listen)
+}
+
+func InitRPCServer(config *common.ServerConfig, ctx context.Context, stor storage.StorageInterface) *RPCServer {
+	s := &RPCServer{
+		address: config.Address,
+		server:  grpc.NewServer(),
+		impl:    &RPCImpl{stor: stor},
 	}
+
+	return s
 }

@@ -27,6 +27,7 @@ type StorageInterface interface {
 	GetMetric(ctx context.Context, mType string, id string) (*StorageMetric, error)
 	UpdateMetric(ctx context.Context, metric common.Metric) error
 	UpdateMetrics(ctx context.Context, metricsList []common.Metric) error
+	Ping(ctx context.Context) error
 }
 
 type StorageV2 struct {
@@ -291,6 +292,10 @@ func (stor *Storage) UpdateMetrics(ctx context.Context, metricsList []common.Met
 	return nil
 }
 
+func (stor *Storage) Ping(ctx context.Context) error {
+	return nil
+}
+
 type BackupStorageWrapper struct {
 	*Storage
 	backupFilePath string
@@ -440,4 +445,8 @@ func (s *MockStorage) UpdateMetric(ctx context.Context, metric common.Metric) er
 
 func (s *MockStorage) UpdateMetrics(ctx context.Context, metricsList []common.Metric) error {
 	return s.UpdateMetricsResponse
+}
+
+func (s *MockStorage) Ping(ctx context.Context) error {
+	return nil
 }

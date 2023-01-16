@@ -446,3 +446,5 @@ const (
 	HTTP ServiceType = 0
 	GRPC ServiceType = 1
 )
+
+var UnknownServiceType = errors.New("unknown service type")

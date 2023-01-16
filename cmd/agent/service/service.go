@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
@@ -95,21 +94,23 @@ func (s *service) StartSending() {
 	mainWG.Wait()
 }
 
-func InitService(config common.AgentConfig, ctx context.Context, serviceType common.ServiceType) *service {
+func InitService(config common.AgentConfig, ctx context.Context, serviceType common.ServiceType) (*service, error) {
 	service := &service{
 		ctx:            ctx,
 		pollInterval:   config.PollInterval.Duration,
 		reportInterval: config.ReportInterval.Duration,
 	}
 
+	var err error
+
 	switch serviceType {
 	case common.HTTP:
 		service.client = InitHTTPClient(config, ctx)
 	case common.GRPC:
-		service.client = InitRPCClient(config, ctx)
+		service.client, err = InitRPCClient(config, ctx)
 	default:
-		log.Fatal()
+		return nil, common.UnknownServiceType
 	}
 
-	return service
+	return service, err
 }

@@ -70,7 +70,11 @@ func (s *HTTPServer) Start() error {
 	return nil
 }
 
-func InitHTTPServer(config *common.ServerConfig, ctx context.Context, stor storage.StorageInterface) *HTTPServer {
+func InitHTTPServer(
+	config *common.ServerConfig,
+	ctx context.Context,
+	stor storage.StorageInterface,
+) *HTTPServer {
 	s := &HTTPServer{
 		address:     config.Address,
 		ctx:         ctx,

@@ -44,7 +44,11 @@ func main() {
 	initConfig()
 	log.Println("Config is", Config)
 
-	s := service.InitService(Config, context.Background(), common.HTTP)
+	s, err := service.InitService(Config, context.Background(), common.HTTP)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
 	defer s.Destructor()
 	s.Start()
 }

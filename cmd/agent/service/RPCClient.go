@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"log"
 
 	"github.com/GermanVor/devops-pet-project/cmd/agent/metric"
 	"github.com/GermanVor/devops-pet-project/internal/common"
@@ -35,15 +34,15 @@ func (s *RPCClient) SendMetricsOneByOne(runtimeMetrics metric.RuntimeMetrics) {
 	})
 }
 
-func InitRPCClient(config common.AgentConfig, ctx context.Context) *RPCClient {
+func InitRPCClient(config common.AgentConfig, ctx context.Context) (*RPCClient, error) {
 	conn, err := grpc.Dial(config.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	return &RPCClient{
 		hashKey: config.Key,
 		c:       pb.NewMetricsClient(conn),
 		ctx:     ctx,
-	}
+	}, err
 }

@@ -54,7 +54,11 @@ func main() {
 		cancel()
 	}()
 
-	service := service.InitService(*Config, ctx, common.HTTP)
+	service, err := service.InitService(*Config, ctx, common.HTTP)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
 	service.StartSending()
 
 	log.Println("Agent finished work")

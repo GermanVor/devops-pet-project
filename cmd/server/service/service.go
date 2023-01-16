@@ -18,7 +18,11 @@ type service struct {
 	destructor func()
 }
 
-func InitService(config *common.ServerConfig, ctx context.Context, serviceType common.ServiceType) *service {
+func InitService(
+	config *common.ServerConfig,
+	ctx context.Context,
+	serviceType common.ServiceType,
+) (*service, error) {
 	service := &service{}
 
 	var currentStor storage.StorageInterface
@@ -27,7 +31,7 @@ func InitService(config *common.ServerConfig, ctx context.Context, serviceType c
 		sqlStorage, err := storage.InitV2(dbContext, config.DataBaseDSN)
 
 		if err != nil {
-			log.Fatalf(err.Error())
+			return nil, err
 		}
 
 		currentStor = sqlStorage
@@ -57,10 +61,10 @@ func InitService(config *common.ServerConfig, ctx context.Context, serviceType c
 	case common.GRPC:
 		service.server = InitRPCServer(config, ctx, currentStor)
 	default:
-		log.Fatal()
+		return nil, common.UnknownServiceType
 	}
 
-	return service
+	return service, nil
 }
 
 func (s *service) Start() error {

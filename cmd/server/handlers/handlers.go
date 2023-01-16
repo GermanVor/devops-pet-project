@@ -1,4 +1,4 @@
-// All the necessary endpoints for storing Metrics in Storage.
+// All the necessary endpoints for storing Metric in Storage.
 package handlers
 
 import (
@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 
 	"github.com/GermanVor/devops-pet-project/internal/common"
@@ -18,17 +19,17 @@ import (
 //
 // key - secret key to for authorization.
 //
-// Expected Request Body interface is Metrics.
+// Expected Request Body interface is Metric.
 //
-//	type Metrics struct {
+//	type Metric struct {
 //		ID    string   `json:"id"`              // имя метрики
 //		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 //		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 //		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-//		Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
+//		Hash  *string   `json:"hash,omitempty"`  // значение хеш-функции
 //	}
 func (s *StorageWrapper) UpdateMetric(w http.ResponseWriter, r *http.Request) {
-	metric := &common.Metrics{}
+	metric := &common.Metric{}
 
 	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -36,13 +37,7 @@ func (s *StorageWrapper) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.key != "" {
-		metricHash, err := common.GetMetricHash(metric, s.key)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if metricHash != metric.Hash {
+		if ok, _ := metric.CheckHash(s.key); !ok {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -64,23 +59,32 @@ func (s *StorageWrapper) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// UpdateMetrics Handler to save pack of Metrics by request Body.
+// UpdateMetrics Handler to save pack of Metric by request Body.
 //
-// Expected Request Body interface is []Metrics.
+// Expected Request Body interface is []Metric.
 //
-//	type Metrics struct {
+//	type Metric struct {
 //		ID    string   `json:"id"`              // имя метрики
 //		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 //		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 //		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-//		Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
+//		Hash  *string   `json:"hash,omitempty"`  // значение хеш-функции
 //	}
 func (s *StorageWrapper) UpdateMetrics(w http.ResponseWriter, r *http.Request) {
-	metricsArr := []common.Metrics{}
+	metricsArr := []common.Metric{}
 
 	if err := json.NewDecoder(r.Body).Decode(&metricsArr); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
+	}
+
+	if s.key != "" {
+		for _, m := range metricsArr {
+			if ok, _ := m.CheckHash(s.key); !ok {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+		}
 	}
 
 	err := s.stor.UpdateMetrics(r.Context(), metricsArr)
@@ -106,20 +110,20 @@ func MissedMetricNameHandlerFunc(w http.ResponseWriter, r *http.Request) {
 //
 // key - secret key to for authorization.
 //
-// Expected Request Body interface is Metrics. Delta and Value field in Request will be ignored.
+// Expected Request Body interface is Metric. Delta and Value field in Request will be ignored.
 //
-//	type Metrics struct {
+//	type Metric struct {
 //		ID    string   `json:"id"`              // имя метрики
 //		MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 //		Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 //		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-//		Hash  string   `json:"hash,omitempty"`  // значение хеш-функции
+//		Hash  *string   `json:"hash,omitempty"`  // значение хеш-функции
 //	}
 //
 // Response is Metric Value as String.
 func (s *StorageWrapper) GetMetric(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	metric := &common.Metrics{}
+	metric := &common.Metric{}
 
 	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -153,7 +157,7 @@ func (s *StorageWrapper) GetMetric(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.key != "" {
-		metric.Hash, _ = common.GetMetricHash(metric, s.key)
+		metric.SetHash(s.key)
 	}
 
 	jsonResp, _ := metric.MarshalJSON()
@@ -193,7 +197,9 @@ func MiddlewareDecompressGzip(next http.Handler) http.Handler {
 	})
 }
 
-func MiddlewareEncryptBodyData(rsaKey *rsa.PrivateKey) func(http.Handler) http.Handler {
+type HandlerResponse = func(http.Handler) http.Handler
+
+func MiddlewareEncryptBodyData(rsaKey *rsa.PrivateKey) HandlerResponse {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			metricBytes, err := ioutil.ReadAll(r.Body)
@@ -211,6 +217,30 @@ func MiddlewareEncryptBodyData(rsaKey *rsa.PrivateKey) func(http.Handler) http.H
 
 			r.ContentLength = int64(len(decryptedMetricBytes))
 			r.Body = ioutil.NopCloser(bytes.NewReader(decryptedMetricBytes))
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+const TrustedSubnetHeader = "X-Real-IP"
+
+func MiddlewareTrustedSubnet(trustedSubnet string) HandlerResponse {
+	_, ipnetA, _ := net.ParseCIDR(trustedSubnet)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := r.Header.Get(TrustedSubnetHeader)
+			netIP := net.ParseIP(ip)
+			if netIP == nil {
+				http.Error(w, "trust error", http.StatusForbidden)
+				return
+			}
+
+			if !ipnetA.Contains(netIP) {
+				http.Error(w, "trust error", http.StatusForbidden)
+				return
+			}
 
 			next.ServeHTTP(w, r)
 		})

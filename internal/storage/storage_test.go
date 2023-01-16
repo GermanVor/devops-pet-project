@@ -92,7 +92,7 @@ func TestMain(t *testing.T) {
 		stor := storage.WithBackup(baseStor, backupFileName)
 
 		for id, value := range gaugeMetrics {
-			err := stor.UpdateMetric(context.TODO(), common.Metrics{
+			err := stor.UpdateMetric(context.TODO(), common.Metric{
 				MType: common.GaugeMetricName,
 				ID:    id,
 				Value: &value,
@@ -100,7 +100,7 @@ func TestMain(t *testing.T) {
 			require.NoError(t, err)
 		}
 		for id, delta := range counterMetrics {
-			err := stor.UpdateMetric(context.TODO(), common.Metrics{
+			err := stor.UpdateMetric(context.TODO(), common.Metric{
 				MType: common.CounterMetricName,
 				ID:    id,
 				Delta: &delta,

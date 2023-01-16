@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package metrics;
+
+option go_package = "metrics/proto";
+
+// TO GENERATE metrics.go
+// protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative proto/metrics.proto
+
+message CounterMetric {
+    sint64 delta = 1;
+}
+message GaugeMetric {
+    double value = 1;
+}
+
+message Metric {
+    string id = 1;
+    optional string hash = 2;
+
+    oneof spec {
+        CounterMetric counter = 3;
+        GaugeMetric gauge = 4;
+    }
+}
+
+message Error {
+    sint32 code = 1;
+    string message = 2;
+}
+
+service Metrics {
+    rpc AddMetric(AddMetricRequest) returns (AddMetricResponse);
+    rpc GetMetric(GetMetricRequest) returns (GetMetricResponse);
+
+    rpc AddMetrics(AddMetricsRequest) returns (AddMetricsResponse);
+    rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+
+    rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message PingRequest {
+}
+
+message PingResponse {
+    bool status = 1;
+}
+
+
+message AddMetricRequest {
+    Metric metric = 1;
+}
+
+message AddMetricResponse {
+    Error error = 1; // omitempty
+}
+
+
+message GetMetricRequest {
+    string id = 1;
+    string type = 2;
+}
+
+message GetMetricResponse {
+    Metric metric = 1;
+    Error error = 2; // omitempty
+}
+
+
+message AddMetricsRequest {
+    repeated Metric metrics = 1;
+}
+
+message AddMetricsResponse {
+    Error error = 1; // omitempty
+}
+
+
+message GetMetricsRequest {
+}
+
+message GetMetricsResponse {
+    repeated Metric metrics = 1;
+    Error error = 2; // omitempty
+}

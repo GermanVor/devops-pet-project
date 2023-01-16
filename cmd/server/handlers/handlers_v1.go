@@ -16,7 +16,7 @@ import (
 // URL view: /update/{mType}/{id}/{metricValue} where
 // mType - (gauge|counter), id - Metric Id, metricValue - (float64|int64)
 func (s *StorageWrapper) UpdateMetricV1(w http.ResponseWriter, r *http.Request) {
-	metric := common.Metrics{
+	metric := common.Metric{
 		MType: chi.URLParam(r, "mType"),
 		ID:    chi.URLParam(r, "id"),
 	}

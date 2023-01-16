@@ -12,8 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/GermanVor/devops-pet-project/cmd/agent/metrics"
-	"github.com/GermanVor/devops-pet-project/cmd/agent/utils"
+	"github.com/GermanVor/devops-pet-project/cmd/agent/metric"
 	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
 	"github.com/GermanVor/devops-pet-project/internal/common"
 	"github.com/GermanVor/devops-pet-project/internal/storage"
@@ -57,6 +56,19 @@ func createTestEnvironment(key string) (*storage.Storage, string, func()) {
 	return currentStorage, ts.URL, destructor
 }
 
+func buildRequest(endpointURL, metricType, metricName, metricValue string) (*http.Request, error) {
+	currentURL := endpointURL + "/update/" + metricType + "/" + metricName + "/" + metricValue
+
+	req, err := http.NewRequest(http.MethodPost, currentURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", "text/plain")
+
+	return req, err
+}
+
 func TestServerOperations(t *testing.T) {
 	currentStorage, endpointURL, destructor := createTestEnvironment("")
 	defer destructor()
@@ -66,7 +78,7 @@ func TestServerOperations(t *testing.T) {
 
 	t.Run("Update Gauge metric", func(t *testing.T) {
 		{
-			req, err := utils.BuildRequest(endpointURL, metrics.GaugeTypeName, gaugeMetricName, fmt.Sprint(gaugeMetricValue))
+			req, err := buildRequest(endpointURL, metric.GaugeTypeName, gaugeMetricName, fmt.Sprint(gaugeMetricValue))
 			require.NoError(t, err)
 
 			resp, err := http.DefaultClient.Do(req)
@@ -103,7 +115,7 @@ func TestServerOperations(t *testing.T) {
 	counterMetricDelta := rand.Int63()
 
 	t.Run("Update Counter metric", func(t *testing.T) {
-		req, err := utils.BuildRequest(endpointURL, metrics.CounterTypeName, counterMetricName, fmt.Sprint(counterMetricDelta))
+		req, err := buildRequest(endpointURL, metric.CounterTypeName, counterMetricName, fmt.Sprint(counterMetricDelta))
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -184,7 +196,7 @@ func TestServerOperations(t *testing.T) {
 		assert.Equal(t, (*storage.StorageMetric)(nil), storageMetcric)
 	})
 
-	t.Run("Get all metrics List", func(t *testing.T) {
+	t.Run("Get all metric List", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, endpointURL, nil)
 		require.NoError(t, err)
 
@@ -219,14 +231,14 @@ func TestServerOperationsV2(t *testing.T) {
 		defer destructor()
 
 		value := rand.Float64()
-		metric := &common.Metrics{
+		metric := &common.Metric{
 			ID:    "qwerty",
 			MType: common.GaugeMetricName,
 			Value: &value,
 		}
 
 		if key != "" {
-			metric.Hash, _ = common.GetMetricHash(metric, key)
+			metric.SetHash(key)
 		}
 
 		jsonResp, err := metric.MarshalJSON()
@@ -251,7 +263,7 @@ func TestServerOperationsV2(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-			respMetric := common.Metrics{}
+			respMetric := common.Metric{}
 			require.NoError(t, json.NewDecoder(resp.Body).Decode(&respMetric))
 
 			assert.Equal(t, metric.Value, respMetric.Value)
@@ -273,14 +285,14 @@ func TestServerOperationsV2(t *testing.T) {
 		defer destructor()
 
 		delta := rand.Int63()
-		metric := &common.Metrics{
+		metric := &common.Metric{
 			ID:    "qwerty",
 			MType: common.CounterMetricName,
 			Delta: &delta,
 		}
 
 		if key != "" {
-			metric.Hash, _ = common.GetMetricHash(metric, key)
+			metric.SetHash(key)
 		}
 
 		jsonResp, err := metric.MarshalJSON()
@@ -305,7 +317,7 @@ func TestServerOperationsV2(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-			respMetric := common.Metrics{}
+			respMetric := common.Metric{}
 			require.NoError(t, json.NewDecoder(resp.Body).Decode(&respMetric))
 
 			t.Log(respMetric)

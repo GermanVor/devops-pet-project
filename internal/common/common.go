@@ -447,4 +447,4 @@ const (
 	GRPC ServiceType = 1
 )
 
-var UnknownServiceType = errors.New("unknown service type")
+var ErrUnknownServiceType = errors.New("unknown service type")

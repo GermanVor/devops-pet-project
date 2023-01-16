@@ -61,7 +61,7 @@ func InitService(
 	case common.GRPC:
 		service.server = InitRPCServer(config, ctx, currentStor)
 	default:
-		return nil, common.UnknownServiceType
+		return nil, common.ErrUnknownServiceType
 	}
 
 	return service, nil

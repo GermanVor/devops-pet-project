@@ -2,14 +2,18 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 
+	"github.com/GermanVor/devops-pet-project/cmd/server/handlers"
 	"github.com/GermanVor/devops-pet-project/internal/common"
 	"github.com/GermanVor/devops-pet-project/internal/storage"
 	pb "github.com/GermanVor/devops-pet-project/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 type RPCImpl struct {
@@ -153,11 +157,60 @@ func (s *RPCServer) Start() error {
 	return s.server.Serve(listen)
 }
 
+const TrustedSubnetHeader = "X-Real-IP"
+
+var ErrTrust = errors.New("")
+
+func TrustedSubnetServerInterceptor(trustedSubnet string) grpc.UnaryServerInterceptor {
+	_, ipnetA, _ := net.ParseCIDR(trustedSubnet)
+
+	return func(
+		ctx context.Context,
+		req interface{},
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (resp interface{}, err error) {
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			return nil, ErrTrust
+		}
+
+		subnets := md.Get(TrustedSubnetHeader)
+		if len(subnets) == 0 {
+			return nil, ErrTrust
+		}
+
+		netIP := net.ParseIP(subnets[0])
+
+		if netIP == nil {
+			return nil, ErrTrust
+		}
+
+		if !ipnetA.Contains(netIP) {
+			return nil, ErrTrust
+		}
+
+		return handler(ctx, req)
+	}
+}
+
 func InitRPCServer(config *common.ServerConfig, ctx context.Context, stor storage.StorageInterface) *RPCServer {
+	var opts []grpc.ServerOption
+
+	if config.TrustedSubnet != "" {
+		log.Printf(
+			"Server accepts metrics only with %s equal %s\n",
+			handlers.TrustedSubnetHeader,
+			config.TrustedSubnet,
+		)
+
+		opts = append(opts, grpc.UnaryInterceptor(TrustedSubnetServerInterceptor(config.TrustedSubnet)))
+	}
+
 	s := &RPCServer{
 		address: config.Address,
-		server:  grpc.NewServer(),
-		impl:    &RPCImpl{stor: stor},
+		server:  grpc.NewServer(opts...),
+		impl:    InitRPCImpl(stor),
 	}
 
 	return s

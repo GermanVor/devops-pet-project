@@ -109,7 +109,7 @@ func InitService(config common.AgentConfig, ctx context.Context, serviceType com
 	case common.GRPC:
 		service.client, err = InitRPCClient(config, ctx)
 	default:
-		return nil, common.UnknownServiceType
+		return nil, common.ErrUnknownServiceType
 	}
 
 	return service, err
